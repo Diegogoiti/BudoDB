@@ -7,8 +7,8 @@ use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
 use crate::components::form::Form;
 use crate::components::searchbar::SearchBar;
-use crate::my_app::{self, Columnas};
 use crate::models::{Alumno, Cintas};
+use crate::my_app::{self, Columnas};
 use dioxus::prelude::*;
 
 #[component]
@@ -169,7 +169,6 @@ pub fn Filtrar() -> Element {
     }
 }
 
-
 #[component]
 pub fn Agregar() -> Element {
     // 1. Signals para manejar el estado del formulario
@@ -179,18 +178,27 @@ pub fn Agregar() -> Element {
     let mut representante = use_signal(|| "".to_string());
     let mut contacto = use_signal(|| "".to_string());
     let mut rallita = use_signal(|| false);
-    
+
+    let fecha_nac_valida = use_signal(|| {
+        if fecha_nac.read().is_empty() {
+            true // Si el campo está vacío, no mostramos error (aún)
+        } else {
+            crate::utils::es_fecha_valida(&fecha_nac.read())
+        }
+    });
+
     rsx! {
-     div { class: "flex flex-col h-full space-y-6 max-w-2xl mx-auto",
-            // Encabezado
-            div { class: "text-center py-4",
-                h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
-                p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
-            }
-    Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita}
- }
-}
-   
+
+         div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
+                // Encabezado
+                div { class: "text-center py-4",
+                    h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
+                    p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
+                }
+        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita}
+     }
+
+    }
 }
 
 #[component]

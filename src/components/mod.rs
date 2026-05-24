@@ -1,5 +1,5 @@
 pub mod datatable;
 pub mod filter;
+pub mod form;
 pub mod searchbar;
 pub mod sidebar;
-pub mod form;

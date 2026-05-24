@@ -42,9 +42,9 @@ pub fn Sidebar() -> Element {
                         "© 2026 BudoDB Team. All rights reserved."
                     }
                 }
-                
-                    
-                
+
+
+
             }
             // El "hueco" donde se verán las vistas
             main { class: "flex-1 h-full flex flex-col bg-gray-100 overflow-hidden",

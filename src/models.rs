@@ -89,8 +89,6 @@ impl Alumno {
         };
         edad
     }
-
-
 }
 
 impl fmt::Display for Alumno {

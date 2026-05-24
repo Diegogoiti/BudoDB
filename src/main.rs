@@ -4,6 +4,7 @@ mod models;
 
 mod components;
 mod my_app;
+mod utils;
 mod views;
 
 use crate::components::sidebar::Sidebar;
