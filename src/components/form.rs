@@ -28,11 +28,12 @@ fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
 
     let form_valido = nombre_valido && fecha_valida && representante_valido && contacto_valido;
 
-    let color_btn =  if form_valido {
-    "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
-    } else {
-        "w-full mt-4 py-3 bg-gray-400 text-white font-bold rounded-xl cursor-not-allowed"
-    };
+    let color_btn = if form_valido {
+    "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98] cursor-pointer"
+} else {
+    // Quitamos cursor-not-allowed y ponemos cursor-pointer
+    "w-full mt-4 py-3 bg-gray-400 text-white font-bold rounded-xl cursor-pointer active:scale-[0.98] transition-all"
+};
    
     
 
@@ -124,7 +125,7 @@ fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
                         label { class: "flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
                             input {
                                 r#type: "checkbox",
-                                class: "w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500",
+                                class: "p-2 rounded-lg border outline-none bg-white appearance-none transition-colors {get_border_class(true, false)}",
                                 onchange: move |_| rallita.set(!rallita.cloned())
                             }
                             span { class: "text-sm font-medium text-gray-700", "Grado con Rallita" }
