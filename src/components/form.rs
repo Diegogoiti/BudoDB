@@ -10,7 +10,16 @@ pub fn Form(
     contacto: Signal<String>,
     rallita: Signal<bool>,
     valido: bool,
+    msg_error: Signal<String>,
 ) -> Element {
+    let color_btn =  if valido {
+    "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+} else {
+    "w-full mt-4 py-3 bg-gray-400 text-white font-bold rounded-xl cursor-not-allowed"
+};
+
+
+
     rsx! {
         // Contenedor del Formulario[cite: 6, 8]
                 div { class: "flex-1 flex flex-col justify-around bg-white p-8 rounded-2xl shadow-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl",
@@ -106,9 +115,9 @@ pub fn Form(
                         }
                     }
 
-                    // Botón de Acción
+                    
                     button {
-                        class: "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]",
+                        class: color_btn,
                         onclick: move |_| {
                             let alumno = Alumno {
                                 id: 0,

@@ -179,17 +179,31 @@ pub fn Agregar() -> Element {
     let mut representante = use_signal(|| "".to_string());
     let mut contacto = use_signal(|| "".to_string());
     let mut rallita = use_signal(|| false);
+    let mut msg_error = use_signal(|| "".to_string());
 
     let contacto_valido = {
         let contacto = contacto.read().clone();
-        if !contacto.is_empty() && contacto.len() < 12 {
+        if contacto.is_empty() && contacto.len() < 12 {
+            msg_error.set("El número de contacto inválido, debe tener al menos 12 caracteres".to_string());
             false
         } else {
             true
         }
     };
 
-    let formulario_valido = {!nombre.read().is_empty() && !(fecha_nac.read().clone() == "0000-00-00") && es_fecha_valida(fecha_nac.read().as_str()) && !representante.read().is_empty() && contacto_valido};
+    let fecha_valida = if fecha_nac.read().is_empty() {
+        true
+    } else {
+
+        if !es_fecha_valida(fecha_nac.read().as_str()) {
+            msg_error.set("La fecha de nacimiento no es válida. asegúrate de que este completa.".to_string());
+            false
+        } else {
+            true
+        }
+    };
+
+    let formulario_valido = {!nombre.read().is_empty() && fecha_valida && !representante.read().is_empty() && contacto_valido};
 
     rsx! {
 
@@ -199,7 +213,7 @@ pub fn Agregar() -> Element {
                     h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
                     p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                 }
-        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, valido: formulario_valido}
+        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, valido: formulario_valido, msg_error}
      }
 
     }
