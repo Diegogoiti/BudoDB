@@ -9,6 +9,7 @@ use crate::components::form::Form;
 use crate::components::searchbar::SearchBar;
 use crate::models::{Alumno, Cintas};
 use crate::my_app::{self, Columnas};
+use crate::utils::*;
 use dioxus::prelude::*;
 
 #[component]
@@ -179,13 +180,16 @@ pub fn Agregar() -> Element {
     let mut contacto = use_signal(|| "".to_string());
     let mut rallita = use_signal(|| false);
 
-    let fecha_nac_valida = use_signal(|| {
-        if fecha_nac.read().is_empty() {
-            true // Si el campo está vacío, no mostramos error (aún)
+    let contacto_valido = {
+        let contacto = contacto.read().clone();
+        if !contacto.is_empty() && contacto.len() < 12 {
+            false
         } else {
-            crate::utils::es_fecha_valida(&fecha_nac.read())
+            true
         }
-    });
+    };
+
+    let formulario_valido = {!nombre.read().is_empty() && !(fecha_nac.read().clone() == "0000-00-00") && es_fecha_valida(fecha_nac.read().as_str()) && !representante.read().is_empty() && contacto_valido};
 
     rsx! {
 
@@ -195,7 +199,7 @@ pub fn Agregar() -> Element {
                     h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
                     p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                 }
-        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita}
+        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, valido: formulario_valido}
      }
 
     }

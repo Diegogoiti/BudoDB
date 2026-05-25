@@ -9,6 +9,7 @@ pub fn Form(
     representante: Signal<String>,
     contacto: Signal<String>,
     rallita: Signal<bool>,
+    valido: bool,
 ) -> Element {
     rsx! {
         // Contenedor del Formulario[cite: 6, 8]
@@ -75,22 +76,22 @@ pub fn Form(
                                 class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
                                 placeholder: "0412-0000000",
                                 oninput: move |e| {
-        let mut val = e.value();
+                                    let mut val = e.value();
 
-        // 1. Limpiar: solo números
-        val.retain(|c| c.is_ascii_digit());
+                                    // 1. Limpiar: solo números
+                                    val.retain(|c| c.is_ascii_digit());
 
-        // 2. Formatear: solo insertamos si hay suficientes números
-        if val.len() > 4 {
-            // Inserta el guion en la posición 4
-            val.insert(4, '-');
-        }
+                                    // 2. Formatear: solo insertamos si hay suficientes números
+                                    if val.len() > 4 {
+                                        // Inserta el guion en la posición 4
+                                        val.insert(4, '-');
+                                    }
 
-        // 3. Limitar (opcional, pero útil para no exceder el espacio)
-        val.truncate(12);
+                                    // 3. Limitar (opcional, pero útil para no exceder el espacio)
+                                    val.truncate(12);
 
-        contacto.set(val);
-    }
+                                    contacto.set(val);
+                                }
                             }
                         }
 
@@ -119,7 +120,14 @@ pub fn Form(
                                 rallita: rallita.read().clone(),
                             };
                             println!("{alumno}");
-                            // Aquí conectarás con app_state.write().database.save(...) más adelante
+                            if valido {
+                                // Aquí iría la lógica para agregar el alumno a la base de datos
+                                println!("Formulario válido, se puede agregar el alumno.");
+                            } else {
+                                println!("Formulario inválido, por favor corrige los errores.");
+                                println!("{}",fecha_nac.read());
+                            }
+                            
                         },
                         "Añadir Al Dojo"
                     }
