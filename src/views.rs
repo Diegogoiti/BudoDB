@@ -5,6 +5,7 @@ use std::string;
 
 use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
+use crate::components::form::Form;
 use crate::components::searchbar::SearchBar;
 use crate::my_app::{self, Columnas};
 use crate::models::{Alumno, Cintas};
@@ -178,111 +179,18 @@ pub fn Agregar() -> Element {
     let mut representante = use_signal(|| "".to_string());
     let mut contacto = use_signal(|| "".to_string());
     let mut rallita = use_signal(|| false);
-
+    
     rsx! {
-
-
-div { class: "flex flex-col h-screen max-w-2xl mx-auto p-4",
-
-        div { class: "flex flex-col h-full space-y-6 max-w-2xl mx-auto",
+     div { class: "flex flex-col h-full space-y-6 max-w-2xl mx-auto",
             // Encabezado
             div { class: "text-center py-4",
                 h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
                 p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
             }
-
-            // Contenedor del Formulario[cite: 6, 8]
-            div { class: "flex-1 flex flex-col justify-around bg-white p-8 rounded-2xl shadow-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl",
-                
-                // Campo: Nombre
-                div { class: "flex flex-col space-y-1",
-                    label { class: "text-sm font-semibold text-gray-600", "Nombre Completo" }
-                    input {
-                        r#type: "text",
-                        class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
-                        placeholder: "Ej. Ichiro Suzuki",
-                        oninput: move |e| nombre.set(e.value())
-                    }
-                }
-
-                div { class: "grid grid-cols-2 gap-4",
-                    // Campo: Fecha de Nacimiento
-                    div { class: "flex flex-col space-y-1",
-                        label { class: "text-sm font-semibold text-gray-600", "Fecha de Nacimiento" }
-                        input {
-                            r#type: "date",
-                            class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
-                            oninput: move |e| fecha_nac.set(e.value())
-                        }
-                    }
-
-                    // Campo: Grado / Cinta[cite: 2]
-                    div { class: "flex flex-col space-y-1",
-                        label { class: "text-sm font-semibold text-gray-600", "Grado (Kyu)" }
-                        select {
-                            class: "p-2 rounded-lg border border-gray-300 bg-gray-50",
-                            onchange: move |e| {
-                                if let Ok(val) = e.value().parse::<u32>() {
-                                    rango.set(val);
-                                }
-                            },
-                            {Cintas::all_variants().iter().map(|cinta| rsx! {
-                                option { value: "{cinta.valor()}", "{cinta.label()}" }
-                            })}
-                        }
-                    }
-                }
-
-                // Campo: Representante
-                div { class: "flex flex-col space-y-1",
-                    label { class: "text-sm font-semibold text-gray-600", "Representante" }
-                    input {
-                        r#type: "text",
-                        class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
-                        placeholder: "Nombre del padre o tutor",
-                        oninput: move |e| representante.set(e.value())
-                    }
-                }
-
-                // Campo: Contacto y Rallita
-                div { class: "grid grid-cols-2 gap-4 space-y-1 ",
-                    div { class: "flex flex-col space-y-1",
-                        label { class: "text-sm font-semibold text-gray-600", "Teléfono de Contacto" }
-                        input {
-                            r#type: "tel",
-                            class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
-                            placeholder: "0412-0000000",
-                            oninput: move |e| contacto.set(e.value())
-                        }
-                    }
-
-                    // Checkbox de Rallita[cite: 6]
-                    label { class: "flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
-                        input {
-                            r#type: "checkbox",
-                            class: "w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500",
-                            onchange: move |_| rallita.set(!rallita.cloned())
-                        }
-                        span { class: "text-sm font-medium text-gray-700", "Grado con Rallita" }
-                    }
-                }
-
-                // Botón de Acción
-                button {
-                    class: "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]",
-                    onclick: move |_| {
-                        println!("Guardando: {} - Cinta: {}", nombre.read(), rango.read());
-                        // Aquí conectarás con app_state.write().database.save(...) más adelante
-                    },
-                    "Añadir Al Dojo"
-                }
-            }
-
-            
-            
-        }
-    }
-    }
+    Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita}
+ }
+}
+   
 }
 
 #[component]
