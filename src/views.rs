@@ -192,7 +192,7 @@ pub fn Agregar() -> Element {
     };
 
     let fecha_valida = if fecha_nac.read().is_empty() {
-        true
+        false
     } else {
 
         if !es_fecha_valida(fecha_nac.read().as_str()) {
@@ -203,7 +203,7 @@ pub fn Agregar() -> Element {
         }
     };
 
-    let formulario_valido = {!nombre.read().is_empty() && fecha_valida && !representante.read().is_empty() && contacto_valido};
+    let formulario_valido = (!nombre.read().is_empty(), fecha_valida , !representante.read().is_empty() , contacto_valido);
 
     rsx! {
 
@@ -213,7 +213,7 @@ pub fn Agregar() -> Element {
                     h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
                     p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                 }
-        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, valido: formulario_valido, msg_error}
+        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, msg_error}
      }
 
     }

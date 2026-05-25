@@ -9,15 +9,32 @@ pub fn Form(
     representante: Signal<String>,
     contacto: Signal<String>,
     rallita: Signal<bool>,
-    valido: bool,
+    campos_validos: (bool, bool, bool, bool),
     msg_error: Signal<String>,
 ) -> Element {
-    let color_btn =  if valido {
-    "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
-} else {
-    "w-full mt-4 py-3 bg-gray-400 text-white font-bold rounded-xl cursor-not-allowed"
-};
+fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
+    if !intentando || es_valido {
+        // Normal: Borde gris, ring azul al enfocar
+        "border border-gray-300 focus:ring-2 focus:ring-blue-500/50"
+    } else {
+        // Error: Borde rojo, ring rojo (más intenso)
+        "border border-red-500 ring-2 ring-red-500/30 focus:ring-red-500/50"
+    }
+}
 
+    let mut intentado = use_signal(|| false);
+
+    let (nombre_valido, fecha_valida, representante_valido, contacto_valido) = campos_validos;
+
+    let form_valido = nombre_valido && fecha_valida && representante_valido && contacto_valido;
+
+    let color_btn =  if form_valido {
+    "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+    } else {
+        "w-full mt-4 py-3 bg-gray-400 text-white font-bold rounded-xl cursor-not-allowed"
+    };
+   
+    
 
 
     rsx! {
@@ -29,8 +46,8 @@ pub fn Form(
                         label { class: "text-sm font-semibold text-gray-600", "Nombre Completo" }
                         input {
                             r#type: "text",
-                            class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
-                            placeholder: "Ej. Ichiro Suzuki",
+                            class: "p-2 rounded-lg outline-none transition-colors {get_border_class(nombre_valido, intentado.read().clone())}",
+                            placeholder: "Ej: Juan Pérez",
                             oninput: move |e| nombre.set(e.value())
                         }
                     }
@@ -41,7 +58,7 @@ pub fn Form(
                             label { class: "text-sm font-semibold text-gray-600", "Fecha de Nacimiento" }
                             input {
                                 r#type: "date",
-                                class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
+                            class: "p-2 rounded-lg outline-none transition-colors {get_border_class(fecha_valida, intentado.read().clone())}",                           
                                 oninput: move |e| fecha_nac.set(e.value())
                             }
                         }
@@ -50,7 +67,7 @@ pub fn Form(
                         div { class: "flex flex-col space-y-1",
                             label { class: "text-sm font-semibold text-gray-600", "Grado (Kyu)" }
                             select {
-                                class: "p-2 rounded-lg border border-gray-300 bg-gray-50",
+                                class: "p-2 rounded-lg border border-gray-300 focus:ring-blue-500 outline-none",
                                 onchange: move |e| {
                                     if let Ok(val) = e.value().parse::<u32>() {
                                         rango.set(val);
@@ -68,7 +85,7 @@ pub fn Form(
                         label { class: "text-sm font-semibold text-gray-600", "Representante" }
                         input {
                             r#type: "text",
-                            class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
+                            class: "p-2 rounded-lg outline-none transition-colors {get_border_class(representante_valido, intentado.read().clone())}",                            
                             placeholder: "Nombre del padre o tutor",
                             oninput: move |e| representante.set(e.value())
                         }
@@ -82,7 +99,7 @@ pub fn Form(
                                 r#type: "tel",
                                 maxlength: "12",
                                 value: "{contacto}",
-                                class: "p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
+                            class: "p-2 rounded-lg outline-none transition-colors {get_border_class(contacto_valido, intentado.read().clone())}",                            
                                 placeholder: "0412-0000000",
                                 oninput: move |e| {
                                     let mut val = e.value();
@@ -103,7 +120,6 @@ pub fn Form(
                                 }
                             }
                         }
-
                         // Checkbox de Rallita[cite: 6]
                         label { class: "flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
                             input {
@@ -129,12 +145,13 @@ pub fn Form(
                                 rallita: rallita.read().clone(),
                             };
                             println!("{alumno}");
-                            if valido {
+                            if form_valido {
                                 // Aquí iría la lógica para agregar el alumno a la base de datos
                                 println!("Formulario válido, se puede agregar el alumno.");
                             } else {
                                 println!("Formulario inválido, por favor corrige los errores.");
                                 println!("{}",fecha_nac.read());
+                                intentado.set(true);
                             }
                             
                         },
