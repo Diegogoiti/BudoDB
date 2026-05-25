@@ -3,6 +3,7 @@
 
 use chrono::{Datelike, Local, NaiveDate};
 use rusqlite;
+use std::fmt;
 
 ///modelo que maneja los datos delos alumnos para tratarlos como instancias independientes
 /// de manera mas organizada y clara, contiene metodos como cinta, rango_str o edad que son setters,
@@ -87,6 +88,37 @@ impl Alumno {
             "??".to_string()
         };
         edad
+    }
+
+
+}
+
+impl fmt::Display for Alumno {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            r#"Ficha Técnica del Alumno
+==========================
+ID:             {id}
+Nombre:         {nombre}
+Fecha de Nac.:  {fecha_nac}
+Edad:           {edad} años
+Grado (Kyu):    {rango}
+Cinta/Nivel:    {cinta}
+Representante:  {representante}
+Contacto:       {contacto}
+Con Rallita:    {rallita}
+=========================="#,
+            id = self.id,
+            nombre = self.nombre,
+            fecha_nac = self.fecha_de_nacimiento,
+            edad = self.edad(),
+            rango = self.rango,
+            cinta = self.cinta(),
+            representante = self.representante,
+            contacto = self.numero_contacto,
+            rallita = if self.rallita { "Sí" } else { "No" }
+        )
     }
 }
 

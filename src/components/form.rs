@@ -86,7 +86,16 @@ pub fn Form(nombre: Signal<String>, fecha_nac: Signal<String>, rango: Signal<u32
                 button {
                     class: "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]",
                     onclick: move |_| {
-                        println!("Guardando: {} - Cinta: {}", nombre.read(), rango.read());
+                        let alumno = Alumno {
+                            id: 0,
+                            nombre: nombre.read().clone(),
+                            fecha_de_nacimiento: fecha_nac.read().clone(),
+                            rango: rango.read().clone(),
+                            representante: representante.read().clone(),
+                            numero_contacto: contacto.read().clone(),
+                            rallita: rallita.read().clone(),
+                        };
+                        println!("{alumno}");
                         // Aquí conectarás con app_state.write().database.save(...) más adelante
                     },
                     "Añadir Al Dojo"
