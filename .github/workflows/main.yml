@@ -1,0 +1,25 @@
+name: BudoDB build
+
+on:
+  push:
+    branches: [ main ] # Cambia esto si tu rama se llama 'master'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build Project
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: budodb-windows
+          path: target/x86_64-pc-windows-msvc/release/*.exe
