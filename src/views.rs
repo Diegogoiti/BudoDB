@@ -183,7 +183,7 @@ pub fn Agregar() -> Element {
 
     let contacto_valido = {
         let contacto = contacto.read().clone();
-        if contacto.is_empty() && contacto.len() < 12 {
+        if contacto.is_empty() || contacto.len() < 12 {
             msg_error.set("El número de contacto inválido, debe tener al menos 12 caracteres".to_string());
             false
         } else {
