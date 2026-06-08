@@ -1,4 +1,5 @@
-use crate::models::{Alumno, Cintas};
+use crate::models::{Alumno, Cintas, Database};
+use crate::my_app::MyApp;
 use dioxus::prelude::*;
 
 #[component]
@@ -10,7 +11,6 @@ pub fn Form(
     contacto: Signal<String>,
     rallita: Signal<bool>,
     campos_validos: (bool, bool, bool, bool),
-    msg_error: Signal<String>,
 ) -> Element {
     fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
         if !intentando || es_valido {
@@ -21,6 +21,8 @@ pub fn Form(
             "border border-red-500 ring-2 ring-red-500/30 focus:ring-red-500/50"
         }
     }
+
+    let mut estado = use_context::<Signal<MyApp>>();
 
     let mut intentado = use_signal(|| false);
 
@@ -138,9 +140,21 @@ pub fn Form(
                         numero_contacto: contacto.read().clone(),
                         rallita: rallita.read().clone(),
                     };
-                    println!("{alumno}");
+
                     if form_valido {
                         println!("Formulario válido, se puede agregar el alumno.");
+                        let _ = estado.read().database.save(&alumno);
+                        estado.write().update();
+                        nombre.set("".to_string());
+                                    fecha_nac.set("".to_string());
+                                    representante.set("".to_string());
+                                    contacto.set("".to_string());
+                                    rallita.set(false);
+                                    // rango.set(10); // Opcional: Descomenta si quieres reiniciar la cinta a blanca (10)
+
+                                    // 3. Reiniciamos el indicador de intentos de validación
+                                    intentado.set(false);
+
                     } else {
                         println!("Formulario inválido, por favor corrige los errores.");
                         intentado.set(true);

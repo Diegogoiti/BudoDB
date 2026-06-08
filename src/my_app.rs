@@ -17,7 +17,7 @@ pub enum Columnas {
 pub struct MyApp {
     pub alumnos: Vec<Alumno>,
     pub seleccionados: HashSet<usize>,
-    database: Database,
+    pub database: Database,
 }
 
 impl MyApp {
@@ -29,6 +29,10 @@ impl MyApp {
             seleccionados: HashSet::new(),
             database,
         }
+    }
+
+    pub fn update(&mut self) {
+        self.alumnos = self.database.fetch_all().unwrap();
     }
 
     pub fn toggle_seleccion(&mut self, id: usize) {

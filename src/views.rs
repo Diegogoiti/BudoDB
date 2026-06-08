@@ -7,7 +7,7 @@ use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
 use crate::components::form::Form;
 use crate::components::searchbar::SearchBar;
-use crate::models::{Alumno, Cintas};
+use crate::models::{Alumno, Cintas, Database};
 use crate::my_app::{self, Columnas};
 use crate::utils::*;
 use dioxus::prelude::*;
@@ -184,7 +184,9 @@ pub fn Agregar() -> Element {
     let contacto_valido = {
         let contacto = contacto.read().clone();
         if contacto.is_empty() || contacto.len() < 12 {
-            msg_error.set("El número de contacto inválido, debe tener al menos 12 caracteres".to_string());
+            msg_error.set(
+                "El número de contacto inválido, debe tener al menos 12 caracteres".to_string(),
+            );
             false
         } else {
             true
@@ -194,16 +196,22 @@ pub fn Agregar() -> Element {
     let fecha_valida = if fecha_nac.read().is_empty() {
         false
     } else {
-
         if !es_fecha_valida(fecha_nac.read().as_str()) {
-            msg_error.set("La fecha de nacimiento no es válida. asegúrate de que este completa.".to_string());
+            msg_error.set(
+                "La fecha de nacimiento no es válida. asegúrate de que este completa.".to_string(),
+            );
             false
         } else {
             true
         }
     };
 
-    let formulario_valido = (!nombre.read().is_empty(), fecha_valida , !representante.read().is_empty() , contacto_valido);
+    let formulario_valido = (
+        !nombre.read().is_empty(),
+        fecha_valida,
+        !representante.read().is_empty(),
+        contacto_valido,
+    );
 
     rsx! {
 
@@ -213,7 +221,7 @@ pub fn Agregar() -> Element {
                     h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
                     p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                 }
-        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, msg_error}
+        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido}
      }
 
     }
