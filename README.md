@@ -44,7 +44,7 @@ El código sigue una arquitectura de backend profesional y modular:
 1. **Clonar el repositorio:**
 ```bash
 git clone https://github.com/Diegogoiti/budodb.git
-cd Karate-Student-Manager
+cd BudoDB
 ```
 
 2. **Ejecutar en desarrollo:**
