@@ -146,14 +146,14 @@ pub fn Form(
                         let _ = estado.read().database.save(&alumno);
                         estado.write().update();
                         nombre.set("".to_string());
-                                    fecha_nac.set("".to_string());
-                                    representante.set("".to_string());
-                                    contacto.set("".to_string());
-                                    rallita.set(false);
-                                    // rango.set(10); // Opcional: Descomenta si quieres reiniciar la cinta a blanca (10)
+                        fecha_nac.set("".to_string());
+                        representante.set("".to_string());
+                        contacto.set("".to_string());
+                        rallita.set(false);
+                        rango.set(10); // Opcional: Descomenta si quieres reiniciar la cinta a blanca (10)
 
-                                    // 3. Reiniciamos el indicador de intentos de validación
-                                    intentado.set(false);
+                        // 3. Reiniciamos el indicador de intentos de validación
+                        intentado.set(false);
 
                     } else {
                         println!("Formulario inválido, por favor corrige los errores.");
