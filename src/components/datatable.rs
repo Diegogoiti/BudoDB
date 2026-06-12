@@ -20,7 +20,7 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                         th { class: " z-20  px-4 py-3", "ID" }
                         th { class: " z-20  px-4 py-3", "Nombre" }
                         th { class: " z-20  px-4 py-3", "Cinta" }
-                        th { class: " z-20  px-4 py-3", "kyu" }
+                        th { class: " z-20  px-4 py-3", "Rango" }
                         th { class: " z-20  px-4 py-3", "Edad" }
                         th { class: " z-20  px-4 py-3", "F. Nacimiento" }
                         th { class: " z-20  px-4 py-3", "Representante" }
@@ -51,7 +51,7 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                             }
                                                         td { class: "px-4 py-3",
                                 span { class: "px-2 py-1 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300",
-                                    "{alumno.rango}"
+                                    "{alumno.rango()}"
                                 }
                             }
                             td { class: "px-4 py-3", "{alumno.edad()}" }

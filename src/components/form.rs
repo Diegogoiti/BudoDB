@@ -1,4 +1,4 @@
-use crate::models::{Alumno, Cintas, Database};
+use crate::models::{Alumno, Cintas};
 use crate::my_app::MyApp;
 use dioxus::prelude::*;
 
@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 pub fn Form(
     nombre: Signal<String>,
     fecha_nac: Signal<String>,
-    rango: Signal<u32>,
+    rango: Signal<i32>,
     representante: Signal<String>,
     contacto: Signal<String>,
     rallita: Signal<bool>,
@@ -71,7 +71,7 @@ pub fn Form(
                         class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
                         value: "{rango}",
                         onchange: move |e| {
-                            if let Ok(val) = e.value().parse::<u32>() {
+                            if let Ok(val) = e.value().parse::<i32>() {
                                 rango.set(val);
                             }
                         },

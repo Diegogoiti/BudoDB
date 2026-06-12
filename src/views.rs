@@ -1,13 +1,13 @@
 //! se encarga de dibujar las vistas segun las rutas seleccionadas
 //! contiene las funciones con el codigo especifico de cada vista
 
-use std::string;
+//use std::string;
 
 use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
 use crate::components::form::Form;
 use crate::components::searchbar::SearchBar;
-use crate::models::{Alumno, Cintas, Database};
+//use crate::models::{Alumno, Cintas, Database};
 use crate::my_app::{self, Columnas};
 use crate::utils::*;
 use dioxus::prelude::*;
@@ -173,12 +173,12 @@ pub fn Filtrar() -> Element {
 #[component]
 pub fn Agregar() -> Element {
     // 1. Signals para manejar el estado del formulario
-    let mut nombre = use_signal(|| "".to_string());
-    let mut fecha_nac = use_signal(|| "".to_string());
-    let mut rango = use_signal(|| 10u32); // Por defecto "Blanca" (valor 10)[cite: 2]
-    let mut representante = use_signal(|| "".to_string());
-    let mut contacto = use_signal(|| "".to_string());
-    let mut rallita = use_signal(|| false);
+    let nombre = use_signal(|| "".to_string());
+    let fecha_nac = use_signal(|| "".to_string());
+    let rango = use_signal(|| 10i32); // Por defecto "Blanca" (valor 10)[cite: 2]
+    let representante = use_signal(|| "".to_string());
+    let contacto = use_signal(|| "".to_string());
+    let rallita = use_signal(|| false);
     let mut msg_error = use_signal(|| "".to_string());
 
     let contacto_valido = {

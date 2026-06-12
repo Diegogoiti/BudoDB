@@ -8,7 +8,7 @@ mod utils;
 mod views;
 
 use crate::components::sidebar::Sidebar;
-use crate::models::Alumno;
+//use crate::models::Alumno;
 use crate::views::*;
 use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;

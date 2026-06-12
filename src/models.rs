@@ -12,7 +12,7 @@ use std::fmt;
 pub struct Alumno {
     pub id: usize,
     pub nombre: String,
-    pub rango: u32,
+    pub rango: i32,
 
     pub fecha_de_nacimiento: String,
     pub representante: String,
@@ -25,7 +25,7 @@ impl Alumno {
     pub fn new(
         nombre: &str,
         fecha_de_nacimiento: &str,
-        rango: u32,
+        rango: i32,
         representante: &str,
         numero_contacto: &str,
         rallita: &bool,
@@ -34,7 +34,7 @@ impl Alumno {
             id: 0,
             nombre: nombre.to_string(),
             fecha_de_nacimiento: fecha_de_nacimiento.to_string(),
-            rango: rango as u32,
+            rango: rango,
             representante: representante.to_string(),
             numero_contacto: numero_contacto.to_string(),
             rallita: *rallita,
@@ -45,7 +45,7 @@ impl Alumno {
         id: i32,
         nombre: &str,
         fecha_de_nacimiento: &str,
-        rango: u32,
+        rango: i32,
         representante: &str,
         numero_contacto: &str,
         rallita: &bool,
@@ -88,6 +88,23 @@ impl Alumno {
             "??".to_string()
         };
         edad
+    }
+
+    pub fn rango(&self) -> String {
+        if self.rango > 0 && !self.rallita {
+            let r = self.rango;
+            format!("{r} kyu")
+        } else if self.rango > 0 && self.rallita {
+            let r = self.rango;
+            format!("{r} kyu B")
+        } else if self.rango <= 0 {
+            let mut r = self.rango;
+            r = r.abs();
+            r += 1;
+            format!("{r} Dan")
+        } else {
+            "??".to_string()
+        }
     }
 }
 
@@ -274,7 +291,7 @@ impl Cintas {
         ]
     }
 
-    pub fn from_rango(rango: u32) -> Self {
+    pub fn from_rango(rango: i32) -> Self {
         match rango {
             10 => Cintas::Blanca,
             9 => Cintas::Celeste,
