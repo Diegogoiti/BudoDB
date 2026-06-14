@@ -38,7 +38,7 @@ pub fn Form(
 
     rsx! {
         // Contenedor del Formulario
-        div { class: "flex-1 flex flex-col justify-around bg-gray-800 p-8 rounded-2xl shadow-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl text-gray-100",
+        div { class: "flex-1 flex flex-col justify-around bg-gray-800 p-8 rounded-2xl shadow-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl text-gray-100 ",
 
             // Campo: Nombre
             div { class: "flex flex-col space-y-1",

@@ -232,20 +232,31 @@ pub fn Agregar() -> Element {
 #[component]
 pub fn Editar() -> Element {
     let estado = use_context::<Signal<my_app::MyApp>>();
-    println!("{:#?}", estado.read().seleccionados);
+    //println!("{:#?}", estado.read().seleccionados);
     let alum_seleccionados = estado.read().seleccionados.len();
     match alum_seleccionados {
         0 => {
             rsx! {
-                div { class: "space-y-4",
+                div { class: "flex flex-col gap-4 h-full",
                     h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
-                    p { class: "text-gray-600",
-                        "Aquí podrás editar la información de los alumnos existentes."
-                    }
 
-                    // Un pequeño indicador de que la vista cargó
-                    div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
-                        "Formulario de edición de alumno (Próximamente)"
+                    div { class: "flex flex-col flex-1 items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl p-8",
+                        // Icono descriptivo (Usuario + Lupa)
+                        svg {
+                            class: "h-12 w-12 text-gray-400 mb-3",
+                            fill: "none",
+                            view_box: "0 0 24 24",
+                            stroke_width: "1.5",
+                            stroke: "currentColor",
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                            }
+                        }
+                        p { class: "text-gray-500 font-medium text-center text-balance max-w-sm",
+                            "Seleccione al menos 1 estudiante para continuar con la edición"
+                        }
                     }
                 }
             }
@@ -254,7 +265,7 @@ pub fn Editar() -> Element {
             rsx! {
                 div { class: "space-y-4",
                     h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
-                    p { class: "text-gray-600",
+                    p { class: "text-gray-600 p-10 ",
                         "Aquí podrás editar la información de los alumnos existentes."
                     }
 
