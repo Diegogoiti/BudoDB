@@ -69,10 +69,13 @@ pub fn Form(
                     label { class: "text-sm font-semibold text-gray-400", "Grado (Kyu)" }
                     select {
                         class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
-                        value: "{rango}",
+                        value: if *rango.read() <= 0 { "0".to_string() } else { rango.to_string() },
                         onchange: move |e| {
                             if let Ok(val) = e.value().parse::<i32>() {
+
+                                println!("valor_rango: {}", &val);
                                 rango.set(val);
+
                             }
                         },
                         {Cintas::all_variants().iter().map(|cinta| rsx! {
@@ -117,14 +120,43 @@ pub fn Form(
                 }
 
                 // Checkbox de Rallita (Unificado al Modo Oscuro)
-                label { class: "flex items-center space-x-3 p-[11px] bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700/50 transition-colors h-[42px]",
-                    input {
-                        r#type: "checkbox",
-                        class: "w-5 h-5 rounded accent-blue-500 bg-gray-900 border-gray-700 focus:ring-blue-500/50 cursor-pointer",
-                        checked: "{rallita}",
-                        onchange: move |_| rallita.set(!rallita.cloned())
+
+                {
+                    if rango.read().clone() > 0 {
+                        rsx! {
+                            label { class: "flex items-center space-x-3 p-[11px] bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700/50 transition-colors h-[42px]",
+                                input {
+                                    r#type: "checkbox",
+                                    class: "w-5 h-5 rounded accent-blue-500 bg-gray-900 border-gray-700 focus:ring-blue-500/50 cursor-pointer",
+                                    checked: "{rallita}",
+                                    onchange: move |_| rallita.set(!rallita.cloned())
+                                }
+                                span { class: "text-sm font-medium text-gray-300 select-none", "Grado con Rallita" }
+                            }
+                        }
+                    } else {
+                        rsx! {
+                            div { class: "flex flex-col space-y-1 w-full",
+                                select {
+                                    class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
+                                    onchange: move |e| {
+                                        if let Ok(dan) = e.value().parse::<i32>() {
+                                            // TODO: Vincula esto a tu Signal de Dan o maneja el estado aquí
+                                            println!("Dan seleccionado: {}", dan);
+                                            let mut val = dan;
+                                            val = val * -1;
+                                            val = val +1;
+                                            println!("valor a guardar: {}",val);
+                                            rango.set(val);
+                                        }
+                                    },
+                                    {(1..=10).map(|dan| rsx! {
+                                        option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
+                                    })}
+                                }
+                            }
+                        }
                     }
-                    span { class: "text-sm font-medium text-gray-300 select-none", "Grado con Rallita" }
                 }
             }
 
