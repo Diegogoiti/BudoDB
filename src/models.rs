@@ -8,7 +8,7 @@ use std::fmt;
 ///modelo que maneja los datos delos alumnos para tratarlos como instancias independientes
 /// de manera mas organizada y clara, contiene metodos como cinta, rango_str o edad que son setters,
 /// calculan los valores a partir de las variables  y los retornan
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Alumno {
     pub id: usize,
     pub nombre: String,

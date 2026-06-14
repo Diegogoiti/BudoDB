@@ -229,6 +229,8 @@ pub fn Agregar() -> Element {
 
 #[component]
 pub fn Editar() -> Element {
+    let estado = use_context::<Signal<my_app::MyApp>>();
+    println!("{:#?}", estado.read().seleccionados);
     rsx! {
         div { class: "space-y-4",
             h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }

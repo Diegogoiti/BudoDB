@@ -1,5 +1,6 @@
 use crate::models::Alumno;
 use crate::my_app;
+use crate::Route;
 use dioxus::prelude::*;
 
 ///componente que recibe un contexto con una clase myapp y clona el vertor alumnos
@@ -33,6 +34,12 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                             class: "hover:bg-gray-800/50 transition-colors",
                             onclick: move |_| {
                                 estado.write().toggle_seleccion(alumno.id);
+                            },
+                            ondoubleclick: move |_| {
+                            if !estado.read().seleccionados.contains(&alumno.id) {
+                                estado.write().toggle_seleccion(alumno.id);
+                            }
+                            use_navigator().push(Route::Editar {});
                             },
                             td { class: "px-4 py-3",
                                 input {
