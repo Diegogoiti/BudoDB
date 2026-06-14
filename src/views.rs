@@ -238,8 +238,12 @@ pub fn Editar() -> Element {
         0 => {
             rsx! {
                 div { class: "flex flex-col gap-4 h-full",
-                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
+                    // Contenedor del título unificado con las otras vistas
+                    div { class: "relative flex items-center justify-center py-2",
+                        h2 { class: "text-3xl font-bold text-gray-800 text-center", "Editar Alumno" }
+                    }
 
+                    // Contenedor del estado vacío optimizado
                     div { class: "flex flex-col flex-1 items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl p-8",
                         // Icono descriptivo (Usuario + Lupa)
                         svg {
@@ -249,8 +253,8 @@ pub fn Editar() -> Element {
                             stroke_width: "1.5",
                             stroke: "currentColor",
                             path {
-                                stroke_linecap: "round",
-                                stroke_linejoin: "round",
+                                stroke_line_cap: "round",
+                                stroke_line_join: "round",
                                 d: "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
                             }
                         }
