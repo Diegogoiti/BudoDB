@@ -68,12 +68,27 @@ impl MyApp {
             return self.alumnos.clone();
         }
 
+        // Caso especial: Búsqueda exacta por ID (KISS y óptima)
+        if let Columnas::Id = col {
+            if let Ok(id_buscado) = q.trim().parse::<usize>() {
+                return self
+                    .alumnos
+                    .iter()
+                    .find(|a| a.id == id_buscado)
+                    .cloned()
+                    .map(|a| vec![a]) // Si lo encuentra, lo mete en un Vec
+                    .unwrap_or_default(); // Si no, retorna un Vec vacío
+            } else {
+                return Vec::new(); // Si el query no es un número válido, no hay coincidencia exacta
+            }
+        }
+
+        // Resto de columnas (Búsqueda parcial por texto como la tenías)
         self.alumnos
             .iter()
             .cloned()
             .filter(|a| match col {
                 Columnas::Nombre => a.nombre.to_lowercase().contains(&q),
-                Columnas::Id => a.id.to_string().contains(&q),
                 Columnas::Representante => a.representante.to_lowercase().contains(&q),
                 Columnas::Telefono => a.numero_contacto.contains(&q),
                 _ => true,
