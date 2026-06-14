@@ -3,6 +3,8 @@
 
 //use std::string;
 
+use std::usize;
+
 use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
 use crate::components::form::Form;
@@ -231,17 +233,55 @@ pub fn Agregar() -> Element {
 pub fn Editar() -> Element {
     let estado = use_context::<Signal<my_app::MyApp>>();
     println!("{:#?}", estado.read().seleccionados);
-    rsx! {
-        div { class: "space-y-4",
-            h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
-            p { class: "text-gray-600",
-                "Aquí podrás editar la información de los alumnos existentes."
-            }
+    let alum_seleccionados = estado.read().seleccionados.len();
+    match alum_seleccionados {
+        0 => {
+            rsx! {
+                div { class: "space-y-4",
+                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
+                    p { class: "text-gray-600",
+                        "Aquí podrás editar la información de los alumnos existentes."
+                    }
 
-            // Un pequeño indicador de que la vista cargó
-            div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
-                "Formulario de edición de alumno (Próximamente)"
+                    // Un pequeño indicador de que la vista cargó
+                    div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
+                        "Formulario de edición de alumno (Próximamente)"
+                    }
+                }
             }
+        }
+        1 => {
+            rsx! {
+                div { class: "space-y-4",
+                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
+                    p { class: "text-gray-600",
+                        "Aquí podrás editar la información de los alumnos existentes."
+                    }
+
+                    // Un pequeño indicador de que la vista cargó
+                    div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
+                        "Formulario de edición de alumno (Próximamente)"
+                    }
+                }
+            }
+        }
+        2..=usize::MAX => {
+            rsx! {
+                div { class: "space-y-4",
+                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
+                    p { class: "text-gray-600",
+                        "Aquí podrás editar la información de los alumnos existentes."
+                    }
+
+                    // Un pequeño indicador de que la vista cargó
+                    div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
+                        "Formulario de edición de alumno (Próximamente)"
+                    }
+                }
+            }
+        }
+        _ => {
+            panic!("error");
         }
     }
 }
