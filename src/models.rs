@@ -41,26 +41,6 @@ impl Alumno {
         }
     }
 
-    pub fn from_db(
-        id: i32,
-        nombre: &str,
-        fecha_de_nacimiento: &str,
-        rango: i32,
-        representante: &str,
-        numero_contacto: &str,
-        rallita: &bool,
-    ) -> Self {
-        Self {
-            id: id as usize,
-            nombre: nombre.to_string(),
-            fecha_de_nacimiento: fecha_de_nacimiento.to_string(),
-            rango,
-            representante: representante.to_string(),
-            numero_contacto: numero_contacto.to_string(),
-            rallita: *rallita,
-        }
-    }
-
     pub fn cinta(&self) -> String {
         let texto_cinta = Cintas::from_rango(self.rango).nombre().to_string();
         if self.rallita {
@@ -198,15 +178,15 @@ impl Database {
     )?;
 
         let alumno_iter = stmt.query_map([], |row| {
-            Ok(Alumno::from_db(
-                row.get(0)?,
-                &row.get::<_, String>(1)?,
-                &row.get::<_, String>(2)?,
-                row.get(3)?,
-                &row.get::<_, String>(4)?,
-                &row.get::<_, String>(5)?,
-                &row.get::<_, bool>(6)?,
-            ))
+            Ok(Alumno {
+                id: row.get(0)?,
+                nombre: row.get::<_, String>(1)?,
+                fecha_de_nacimiento: row.get::<_, String>(2)?,
+                rango: row.get(3)?,
+                representante: row.get::<_, String>(4)?,
+                numero_contacto: row.get::<_, String>(5)?,
+                rallita: row.get::<_, bool>(6)?,
+            })
         })?;
 
         let mut alumnos = Vec::new();
@@ -244,15 +224,15 @@ impl Database {
         "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto FROM alumnos WHERE id = ?1",
         rusqlite::params![id],
         |row| {
-            Ok(Alumno::from_db(
-                row.get(0)?,
-                &row.get::<_, String>(1)?,
-                &row.get::<_, String>(2)?,
-                row.get(3)?,
-                &row.get::<_, String>(4)?,
-                &row.get::<_, String>(5)?,
-                &row.get::<_, bool>(6)?,
-            ))
+            Ok(Alumno {
+                id: row.get(0)?,
+                nombre: row.get::<_, String>(1)?,
+                fecha_de_nacimiento: row.get::<_, String>(2)?,
+                rango:row.get(3)?,
+                representante:row.get::<_, String>(4)?,
+                numero_contacto:row.get::<_, String>(5)?,
+                rallita:row.get::<_, bool>(6)?,
+                })
         },
     )
     }

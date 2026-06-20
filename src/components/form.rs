@@ -10,7 +10,9 @@ pub fn Form(
     representante: Signal<String>,
     contacto: Signal<String>,
     rallita: Signal<bool>,
+    texto_boton: String,
     campos_validos: (bool, bool, bool, bool),
+    on_click: EventHandler<()>,
 ) -> Element {
     fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
         if !intentando || es_valido {
@@ -22,7 +24,7 @@ pub fn Form(
         }
     }
 
-    let mut estado = use_context::<Signal<MyApp>>();
+    //let mut estado = use_context::<Signal<MyApp>>();
 
     let mut intentado = use_signal(|| false);
 
@@ -141,7 +143,7 @@ pub fn Form(
                                     class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
                                     onchange: move |e| {
                                         if let Ok(dan) = e.value().parse::<i32>() {
-                                            // TODO: Vincula esto a tu Signal de Dan o maneja el estado aquí
+
                                             println!("Dan seleccionado: {}", dan);
                                             let mut val = dan;
                                             val = val * -1;
@@ -163,26 +165,14 @@ pub fn Form(
             button {
                 class: color_btn,
                 onclick: move |_| {
-                    let alumno = Alumno {
-                        id: 0,
-                        nombre: nombre.read().clone(),
-                        fecha_de_nacimiento: fecha_nac.read().clone(),
-                        rango: rango.read().clone(),
-                        representante: representante.read().clone(),
-                        numero_contacto: contacto.read().clone(),
-                        rallita: rallita.read().clone(),
-                    };
+
 
                     if form_valido {
                         println!("Formulario válido, se puede agregar el alumno.");
-                        let _ = estado.read().database.save(&alumno);
-                        estado.write().update();
-                        nombre.set("".to_string());
-                        fecha_nac.set("".to_string());
-                        representante.set("".to_string());
-                        contacto.set("".to_string());
-                        rallita.set(false);
-                        rango.set(10); // Opcional: Descomenta si quieres reiniciar la cinta a blanca (10)
+                        //let _ = estado.read().database.save(&alumno);
+
+
+                        on_click.call(());
 
                         // 3. Reiniciamos el indicador de intentos de validación
                         intentado.set(false);

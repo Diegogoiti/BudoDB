@@ -9,9 +9,10 @@ use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
 use crate::components::form::Form;
 use crate::components::searchbar::SearchBar;
+use crate::models::Alumno;
 //use crate::models::{Alumno, Cintas, Database};
 use crate::my_app::{self, Columnas};
-use crate::utils::*;
+use crate::utils::{self, *};
 use dioxus::prelude::*;
 
 #[component]
@@ -174,39 +175,19 @@ pub fn Filtrar() -> Element {
 
 #[component]
 pub fn Agregar() -> Element {
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
     // 1. Signals para manejar el estado del formulario
-    let nombre = use_signal(|| "".to_string());
-    let fecha_nac = use_signal(|| "".to_string());
-    let rango = use_signal(|| 10i32); // Por defecto "Blanca" (valor 10)[cite: 2]
-    let representante = use_signal(|| "".to_string());
-    let contacto = use_signal(|| "".to_string());
-    let rallita = use_signal(|| false);
-    let mut msg_error = use_signal(|| "".to_string());
+    let mut nombre = use_signal(|| "".to_string());
+    let mut fecha_nac = use_signal(|| "".to_string());
+    let mut rango = use_signal(|| 10i32); // Por defecto "Blanca" (valor 10)[cite: 2]
+    let mut representante = use_signal(|| "".to_string());
+    let mut contacto = use_signal(|| "".to_string());
+    let mut rallita = use_signal(|| false);
+    //let mut msg_error = use_signal(|| "".to_string());
 
-    let contacto_valido = {
-        let contacto = contacto.read().clone();
-        if contacto.is_empty() || contacto.len() < 12 {
-            msg_error.set(
-                "El número de contacto inválido, debe tener al menos 12 caracteres".to_string(),
-            );
-            false
-        } else {
-            true
-        }
-    };
+    let contacto_valido = utils::contacto_valido(contacto.read().clone());
 
-    let fecha_valida = if fecha_nac.read().is_empty() {
-        false
-    } else {
-        if !es_fecha_valida(fecha_nac.read().as_str()) {
-            msg_error.set(
-                "La fecha de nacimiento no es válida. asegúrate de que este completa.".to_string(),
-            );
-            false
-        } else {
-            true
-        }
-    };
+    let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
 
     let formulario_valido = (
         !nombre.read().is_empty(),
@@ -223,7 +204,31 @@ pub fn Agregar() -> Element {
                     h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
                     p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                 }
-        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido}
+        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, on_click: move |_| {
+
+            let alumno = Alumno {
+                id: 0,
+                nombre: nombre.read().clone(),
+                fecha_de_nacimiento: fecha_nac.read().clone(),
+                numero_contacto: contacto.read().clone(),
+                rango: rango.read().clone(),
+                representante: representante.read().clone(),
+                rallita: rallita.read().clone()
+
+
+            };
+
+            let _ = estado.read().database.save(&alumno);
+            estado.write().update();
+            nombre.set("".to_string());
+            fecha_nac.set("".to_string());
+            representante.set("".to_string());
+            contacto.set("".to_string());
+            rallita.set(false);
+            rango.set(10);
+        }, texto_boton: "Guardar"}
+
+
      }
 
     }
@@ -266,18 +271,25 @@ pub fn Editar() -> Element {
             }
         }
         1 => {
-            rsx! {
-                div { class: "space-y-4",
-                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
-                    p { class: "text-gray-600 p-10 ",
-                        "Aquí podrás editar la información de los alumnos existentes."
-                    }
+            let id = *estado.read().seleccionados.iter().next().unwrap();
+            let alumno = estado.read().get_alumno_by_id(id);
 
-                    // Un pequeño indicador de que la vista cargó
-                    div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
-                        "Formulario de edición de alumno (Próximamente)"
+            let nombre = use_signal(|| alumno.nombre.clone());
+            let fecha_nac = use_signal(|| alumno.fecha_de_nacimiento.clone());
+            let rango = use_signal(|| (alumno.rango)); // Por defecto "Blanca" (valor 10)[cite: 2]
+            let representante = use_signal(|| alumno.representante.clone());
+            let contacto = use_signal(|| "".to_string());
+            let rallita = use_signal(|| false);
+            //let mut msg_error = use_signal(|| "".to_string());
+            rsx! {
+                    div { class: "flex flex-col gap-4 h-full",
+                        // Contenedor del título unificado con las otras vistas
+                        div { class: "relative flex items-center justify-center py-2",
+                            h2 { class: "text-3xl font-bold text-gray-800 text-center", "Editar Alumno" }
+                        }
+
+
                     }
-                }
             }
         }
         2..=usize::MAX => {

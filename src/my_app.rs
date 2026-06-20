@@ -96,6 +96,14 @@ impl MyApp {
             .collect()
     }
 
+    pub fn get_alumno_by_id(&self, id: usize) -> Alumno {
+        self.alumnos
+            .iter()
+            .find(|a| a.id == id)
+            .cloned() // Clona el alumno encontrado para poder sacarlo de la estructura
+            .expect("Error: El ID del alumno no existe en la base de datos") // Rompe el programa de forma controlada si es None
+    }
+
     pub fn filtrar_edad(&self, edad: String) -> Vec<Alumno> {
         if edad.is_empty() {
             return self.alumnos.clone();
