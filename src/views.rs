@@ -236,7 +236,7 @@ pub fn Agregar() -> Element {
 
 #[component]
 pub fn Editar() -> Element {
-    let estado = use_context::<Signal<my_app::MyApp>>();
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
     //println!("{:#?}", estado.read().seleccionados);
     let alum_seleccionados = estado.read().seleccionados.len();
     match alum_seleccionados {
@@ -274,20 +274,44 @@ pub fn Editar() -> Element {
             let id = *estado.read().seleccionados.iter().next().unwrap();
             let alumno = estado.read().get_alumno_by_id(id);
 
-            let nombre = use_signal(|| alumno.nombre.clone());
-            let fecha_nac = use_signal(|| alumno.fecha_de_nacimiento.clone());
-            let rango = use_signal(|| (alumno.rango)); // Por defecto "Blanca" (valor 10)[cite: 2]
-            let representante = use_signal(|| alumno.representante.clone());
-            let contacto = use_signal(|| "".to_string());
-            let rallita = use_signal(|| false);
+            let mut nombre = use_signal(|| alumno.nombre.clone());
+            let mut fecha_nac = use_signal(|| alumno.fecha_de_nacimiento.clone());
+            let mut rango = use_signal(|| alumno.rango); // Por defecto "Blanca" (valor 10)[cite: 2]
+            let mut representante = use_signal(|| alumno.representante.clone());
+            let mut contacto = use_signal(|| "".to_string());
+            let mut rallita = use_signal(|| false);
             //let mut msg_error = use_signal(|| "".to_string());
+
+            let contacto_valido = utils::contacto_valido(contacto.read().clone());
+
+            let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
+
+            let formulario_valido = (
+                !nombre.read().is_empty(),
+                fecha_valida,
+                !representante.read().is_empty(),
+                contacto_valido,
+            );
+
             rsx! {
                     div { class: "flex flex-col gap-4 h-full",
                         // Contenedor del título unificado con las otras vistas
                         div { class: "relative flex items-center justify-center py-2",
                             h2 { class: "text-3xl font-bold text-gray-800 text-center", "Editar Alumno" }
                         }
+                        Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, on_click: move |_| {
 
+                            let mut alumno = estado.read().get_alumno_by_id(id);
+
+                            let _ = estado.read().database.save(&alumno);
+                            estado.write().update();
+                            nombre.set("".to_string());
+                            fecha_nac.set("".to_string());
+                            representante.set("".to_string());
+                            contacto.set("".to_string());
+                            rallita.set(false);
+                            rango.set(10);
+                        }, texto_boton: "Guardar"}
 
                     }
             }
