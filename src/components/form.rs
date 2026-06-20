@@ -10,7 +10,7 @@ pub fn Form(
     representante: Signal<String>,
     contacto: Signal<String>,
     rallita: Signal<bool>,
-    texto_boton: String,
+    texto_boton: &'static str,
     campos_validos: (bool, bool, bool, bool),
     on_click: EventHandler<()>,
 ) -> Element {
@@ -182,7 +182,7 @@ pub fn Form(
                         intentado.set(true);
                     }
                 },
-                "Añadir Al Dojo"
+                {texto_boton}
             }
         }
     }
