@@ -68,7 +68,7 @@ pub fn Form(
 
                 // Campo: Grado / Cinta
                 div { class: "flex flex-col space-y-1",
-                    label { class: "text-sm font-semibold text-gray-400", "Grado (Kyu)" }
+                    label { class: "text-sm font-semibold text-gray-400", "Cinta" }
                     select {
                         class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
                         value: {

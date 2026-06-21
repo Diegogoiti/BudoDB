@@ -201,7 +201,7 @@ pub fn Agregar() -> Element {
          div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
                 // Encabezado
                 div { class: "text-center py-4",
-                    h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" }
+                    h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" },
                     p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                 }
         Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, on_click: move |_| {
@@ -246,6 +246,7 @@ pub fn Editar() -> Element {
                     // Contenedor del título unificado con las otras vistas
                     div { class: "relative flex items-center justify-center py-2",
                         h2 { class: "text-3xl font-bold text-gray-800 text-center", "Editar Alumno" }
+
                     }
 
                     // Contenedor del estado vacío optimizado
@@ -295,11 +296,17 @@ pub fn Editar() -> Element {
             );
 
             rsx! {
+                div {class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
                     div { class: "flex flex-col gap-4 h-full",
                         // Contenedor del título unificado con las otras vistas
-                        div { class: "relative flex items-center justify-center py-2",
+                        div { class: "text-center py-4",
                             h2 { class: "text-3xl font-bold text-gray-800 text-center", "Editar Alumno" }
+                            p { class: "text-gray-500", "Modifica los datos personales y de grado del karateka." }
                         }
+                        /*div { class: "",
+                            h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" },
+                            p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
+                        }*/
                         Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, on_click: move |_| {
 
                             let mut alumno = estado.read().get_alumno_by_id(id);
@@ -323,7 +330,7 @@ pub fn Editar() -> Element {
                             rango.set(10);
                         }, texto_boton: "Guardar"}
 
-                    }
+                    }}
             }
         }
         2..=usize::MAX => {
