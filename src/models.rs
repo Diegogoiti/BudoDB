@@ -221,7 +221,7 @@ impl Database {
 
     pub fn get_alumno_by_id(&self, id: i32) -> rusqlite::Result<Alumno> {
         self.connection.query_row(
-        "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto FROM alumnos WHERE id = ?1",
+        "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita FROM alumnos WHERE id = ?1",
         rusqlite::params![id],
         |row| {
             Ok(Alumno {

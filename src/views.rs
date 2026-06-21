@@ -276,10 +276,11 @@ pub fn Editar() -> Element {
 
             let mut nombre = use_signal(|| alumno.nombre.clone());
             let mut fecha_nac = use_signal(|| alumno.fecha_de_nacimiento.clone());
-            let mut rango = use_signal(|| alumno.rango); // Por defecto "Blanca" (valor 10)[cite: 2]
+            let mut rango = use_signal(|| alumno.rango.clone()); // Por defecto "Blanca" (valor 10)[cite: 2]
+            println!("rango: {}", alumno.rango);
             let mut representante = use_signal(|| alumno.representante.clone());
-            let mut contacto = use_signal(|| "".to_string());
-            let mut rallita = use_signal(|| false);
+            let mut contacto = use_signal(|| alumno.numero_contacto.clone());
+            let mut rallita = use_signal(|| alumno.rallita);
             //let mut msg_error = use_signal(|| "".to_string());
 
             let contacto_valido = utils::contacto_valido(contacto.read().clone());
@@ -302,6 +303,15 @@ pub fn Editar() -> Element {
                         Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, on_click: move |_| {
 
                             let mut alumno = estado.read().get_alumno_by_id(id);
+
+                            alumno.nombre = nombre.read().clone();
+                            alumno.fecha_de_nacimiento = fecha_nac.read().clone();
+                            alumno.rango = rango.read().clone();
+                            alumno.representante = representante.read().clone();
+                            alumno.numero_contacto = contacto.read().clone();
+                            alumno.rallita = rallita.read().clone();
+
+
 
                             let _ = estado.read().database.save(&alumno);
                             estado.write().update();
