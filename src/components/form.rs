@@ -71,17 +71,35 @@ pub fn Form(
                     label { class: "text-sm font-semibold text-gray-400", "Grado (Kyu)" }
                     select {
                         class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
-                        value: if *rango.read() <= 0 { "0".to_string() } else { rango.to_string() },
+                        value: {
+                            let r = *rango.read();
+                            if r <= 0 { "0".to_string() } else { r.to_string() }
+                        },
                         onchange: move |e| {
                             if let Ok(val) = e.value().parse::<i32>() {
-
                                 println!("valor_rango: {}", &val);
                                 rango.set(val);
-
                             }
                         },
-                        {Cintas::all_variants().iter().map(|cinta| rsx! {
-                            option { class: "bg-gray-900", value: "{cinta.valor()}", "{cinta.label()}" }
+                        {Cintas::all_variants().iter().map(|cinta| {
+                            let v_cinta = cinta.valor();
+                            let r_actual = *rango.read();
+
+                            // Determina si esta opción específica debe estar marcada
+                            let is_selected = if r_actual <= 0 {
+                                v_cinta == 0
+                            } else {
+                                v_cinta == r_actual as u32
+                            };
+
+                            rsx! {
+                                option {
+                                    class: "bg-gray-900",
+                                    value: "{v_cinta}",
+                                    selected: is_selected,
+                                    "{cinta.label()}"
+                                }
+                            }
                         })}
                     }
                 }
