@@ -277,7 +277,7 @@ pub fn Editar() -> Element {
             let mut nombre = use_signal(|| alumno.nombre.clone());
             let mut fecha_nac = use_signal(|| alumno.fecha_de_nacimiento.clone());
             let mut rango = use_signal(|| alumno.rango.clone()); // Por defecto "Blanca" (valor 10)[cite: 2]
-            println!("rango: {}", alumno.rango);
+                                                                 //println!("rango: {}", alumno.rango);
             let mut representante = use_signal(|| alumno.representante.clone());
             let mut contacto = use_signal(|| alumno.numero_contacto.clone());
             let mut rallita = use_signal(|| alumno.rallita);
@@ -313,7 +313,7 @@ pub fn Editar() -> Element {
 
 
 
-                            let _ = estado.read().database.save(&alumno);
+                            let _ = estado.read().database.update(&alumno);
                             estado.write().update();
                             nombre.set("".to_string());
                             fecha_nac.set("".to_string());
