@@ -351,7 +351,7 @@ pub fn Editar() -> Element {
                 contacto_valido,
             );*/
 
-            let mut rango = use_signal(|| 10i32); // Por defecto "Blanca" (valor 10)[cite: 2]
+            let mut rango = use_signal(|| 99i32); // Por defecto "Blanca" (valor 10)[cite: 2]
 
             let mut rallita = use_signal(|| false);
 
