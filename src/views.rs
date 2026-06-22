@@ -334,7 +334,7 @@ pub fn Editar() -> Element {
             }
         }
         2..=usize::MAX => {
-            let mut rango = use_signal(|| alumno.rango.clone());            // Por defecto "Blanca" (valor 10)[cite: 2]
+            /*let mut rango = use_signal(|| alumno.rango.clone()); // Por defecto "Blanca" (valor 10)[cite: 2]
 
             let mut rallita = use_signal(|| alumno.rallita);
             //let mut msg_error = use_signal(|| "".to_string());
@@ -348,7 +348,7 @@ pub fn Editar() -> Element {
                 fecha_valida,
                 !representante.read().is_empty(),
                 contacto_valido,
-            );
+            );*/
 
             rsx! {
                 div {class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
@@ -363,6 +363,8 @@ pub fn Editar() -> Element {
                             p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                         }*/
 
+
+                    }}
             }
         }
         _ => {
