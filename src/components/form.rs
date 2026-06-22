@@ -1,5 +1,5 @@
-use crate::models::{Alumno, Cintas};
-use crate::my_app::MyApp;
+use crate::models::{/*Alumno,*/ Cintas};
+//use crate::my_app::MyApp;
 use dioxus::prelude::*;
 
 #[component]
