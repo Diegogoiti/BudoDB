@@ -273,6 +273,7 @@ pub fn Editar() -> Element {
                     let alumno = estado.read().get_alumno_by_id(id);
                     write_lista.push(alumno);
                 }
+                rango.set(99);
             }
             _ => {}
         }
@@ -280,7 +281,7 @@ pub fn Editar() -> Element {
 
     // 3. Renderizado principal
     rsx! {
-        div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
+        div { class: "flex flex-col h-full space-y-4 w-full mx-auto p-2",
             // 💡 Cabecera fija unificada para todas las vistas
             div { class: "text-center py-4",
                 h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
@@ -317,6 +318,7 @@ pub fn Editar() -> Element {
                     let formulario_valido = (!nombre.read().is_empty(), fecha_valida, !representante.read().is_empty(), contacto_valido);
 
                     rsx! {
+
                         Form {
                             nombre: nombre, fecha_nac: fecha_nac, rango: rango,
                             representante: representante, contacto: contacto, rallita: rallita,
@@ -339,8 +341,24 @@ pub fn Editar() -> Element {
                 }
                 2..=usize::MAX => {
                     rsx! {
-                        PromotionForm { rango: rango, rallita: rallita, texto_boton: "Aplicar cambios", on_click: move |_| {} }
-                        DataTable { alumnos_lista: lista_seleccionados, estado: estado }
+                        // Un contenedor que permite el ancho completo para sus hijos
+                        div { class: "flex flex-col h-fit space-y-6 w-full",
+
+                            // 💡 Centramos y limitamos el ancho SOLO del formulario de arriba
+                            div { class: "w-full max-w-xl mx-auto",
+                                PromotionForm {
+                                    rango: rango,
+                                    rallita: rallita,
+                                    texto_boton: "Aplicar cambios",
+                                    on_click: move |_| {}
+                                }
+                            }
+
+                            // 💡 La tabla ahora se estira libremente al 100% del contenedor general
+                            div { class: "w-full",
+                                DataTable { alumnos_lista: lista_seleccionados, estado: estado }
+                            }
+                        }
                     }
                 }
                 _ => { panic!("error"); }
