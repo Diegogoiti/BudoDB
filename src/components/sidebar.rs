@@ -39,7 +39,7 @@ pub fn Sidebar() -> Element {
                         "BudoDB V0.1.0-ALPHA"
                     }
                     p { class: "text-[10px] text-gray-500 tracking-widest",
-                        "© 2026 BudoDB Team. All rights reserved."
+                        "© 2026 Diego Andrés Goitia Márquez. All rights reserved."
                     }
                 }
 

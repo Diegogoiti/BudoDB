@@ -3,7 +3,7 @@
 **BudoDB** es una solución de software eficiente y ligera diseñada para la gestión integral de alumnos en dojos de Karate. Desarrollado por **Diego Goitia**, este proyecto combina la seguridad y el rendimiento de **Rust** con una interfaz moderna construida en **Dioxus**.
 
 ![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![License](https://img.shields.io/badge/license-BSL--1.1-orange)](LICENSE)
 ![Rust](https://img.shields.io/badge/language-Rust-orange)
 
 ## 🚀 Características Principales
