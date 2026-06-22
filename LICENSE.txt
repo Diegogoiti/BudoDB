@@ -37,3 +37,9 @@ In consideration of the right to use this License's text and the "Business Sourc
 2. To either: (a) specify an additional grant of rights to use that does not impose any additional restriction on the right granted in this License, as the Additional Use Grant; or (b) insert the text "None".
 3. To specify a Change Date.
 4. Not to modify this License in any other way.
+
+---------------------------------------------------------------------------------------
+
+Governing Law and Jurisdiction
+
+This License shall be governed by and construed in accordance with the laws of Venezuela. Any legal action, suit, or proceeding arising out of or relating to this License shall be litigated exclusively in the courts of Valencia, Carabobo, Venezuela.
