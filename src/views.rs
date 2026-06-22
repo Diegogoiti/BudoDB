@@ -292,7 +292,7 @@ pub fn Editar() -> Element {
                 match alum_seleccionados {
                     0 => {
                         rsx! {
-                            div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto justify-center items-center border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl w-full",
+                            div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto justify-center items-center border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl p-8",
                                 svg {
                                     class: "h-12 w-12 text-gray-400 mb-3",
                                     fill: "none",
