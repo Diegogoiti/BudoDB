@@ -356,9 +356,9 @@ pub fn Editar() -> Element {
                                 }
 
                                 // La DataTable suelta, igual que en Consulta, pero envuelta en un contenedor elástico
-                                div { class: "w-full flex-1 min-h-0 overflow-auto",
+                                //div { class: "w-full flex-1 min-h-0 overflow-auto",
                                     DataTable { alumnos_lista: lista_seleccionados, estado: estado }
-                                }
+
                             }
                         }
                     }
