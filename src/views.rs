@@ -8,6 +8,7 @@ use std::usize;
 use crate::components::datatable::DataTable;
 use crate::components::filter::Filter;
 use crate::components::form::Form;
+use crate::components::promotion_form::PromotionForm;
 use crate::components::searchbar::SearchBar;
 use crate::models::Alumno;
 //use crate::models::{Alumno, Cintas, Database};
@@ -350,8 +351,12 @@ pub fn Editar() -> Element {
                 contacto_valido,
             );*/
 
+            let mut rango = use_signal(|| 10i32); // Por defecto "Blanca" (valor 10)[cite: 2]
+
+            let mut rallita = use_signal(|| false);
+
             rsx! {
-                div {class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
+                div {class: "flex flex-col h-fit space-y-4 max-w-2xl mx-auto",
                     div { class: "flex flex-col gap-4 h-full",
                         // Contenedor del título unificado con las otras vistas
                         div { class: "text-center py-4",
@@ -362,7 +367,9 @@ pub fn Editar() -> Element {
                             h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" },
                             p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
                         }*/
+                        PromotionForm { rango: rango, rallita: rallita, texto_boton: "Aplicar cambios", on_click: move |_| {
 
+                        }  }
 
                     }}
             }
