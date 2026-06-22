@@ -334,18 +334,35 @@ pub fn Editar() -> Element {
             }
         }
         2..=usize::MAX => {
-            rsx! {
-                div { class: "space-y-4",
-                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
-                    p { class: "text-gray-600",
-                        "Aquí podrás editar la información de los alumnos existentes."
-                    }
+            let mut rango = use_signal(|| alumno.rango.clone());            // Por defecto "Blanca" (valor 10)[cite: 2]
 
-                    // Un pequeño indicador de que la vista cargó
-                    div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
-                        "Formulario de edición de alumno (Próximamente)"
-                    }
-                }
+            let mut rallita = use_signal(|| alumno.rallita);
+            //let mut msg_error = use_signal(|| "".to_string());
+
+            let contacto_valido = utils::contacto_valido(contacto.read().clone());
+
+            let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
+
+            let formulario_valido = (
+                !nombre.read().is_empty(),
+                fecha_valida,
+                !representante.read().is_empty(),
+                contacto_valido,
+            );
+
+            rsx! {
+                div {class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
+                    div { class: "flex flex-col gap-4 h-full",
+                        // Contenedor del título unificado con las otras vistas
+                        div { class: "text-center py-4",
+                            h2 { class: "text-3xl font-bold text-gray-800 text-center", "Editar Alumno" }
+                            p { class: "text-gray-500", "Modifica los datos personales y de grado del karateka." }
+                        }
+                        /*div { class: "",
+                            h2 { class: "text-3xl font-bold text-gray-800", "Registrar Nuevo Alumno" },
+                            p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
+                        }*/
+
             }
         }
         _ => {
