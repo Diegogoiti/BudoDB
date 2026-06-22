@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyApp>) -> Element {
     let alumnos = alumnos_lista.read().clone();
+    let nav = use_navigator();
     rsx! {
 
         div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl ",
@@ -39,7 +40,7 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                             if !estado.read().seleccionados.contains(&alumno.id) {
                                 estado.write().toggle_seleccion(alumno.id);
                             }
-                            use_navigator().push(Route::Editar {});
+                            nav.push(Route::Editar {});
                             },
                             td { class: "px-4 py-3",
                                 input {
