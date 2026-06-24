@@ -191,6 +191,21 @@ impl Database {
         Ok(())
     }
 
+    pub fn update_rangos(&self, alumno: &Alumno) -> rusqlite::Result<()> {
+        self.connection.execute(
+            "UPDATE alumnos SET rango = ?1, rallita = ?2 WHERE id IN (?, ?, ?);",
+            rusqlite::params![
+                alumno.nombre,
+                alumno.fecha_de_nacimiento,
+                alumno.rango,
+                alumno.representante,
+                alumno.numero_contacto,
+                alumno.id
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn delete(&self, alumno_id: i32) -> rusqlite::Result<()> {
         self.connection.execute(
             "DELETE FROM alumnos WHERE id = ?1",
