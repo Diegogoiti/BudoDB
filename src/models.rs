@@ -21,26 +21,6 @@ pub struct Alumno {
 }
 
 impl Alumno {
-    // Un constructor sencillo
-    pub fn new(
-        nombre: &str,
-        fecha_de_nacimiento: &str,
-        rango: i32,
-        representante: &str,
-        numero_contacto: &str,
-        rallita: &bool,
-    ) -> Self {
-        Self {
-            id: 0,
-            nombre: nombre.to_string(),
-            fecha_de_nacimiento: fecha_de_nacimiento.to_string(),
-            rango: rango,
-            representante: representante.to_string(),
-            numero_contacto: numero_contacto.to_string(),
-            rallita: *rallita,
-        }
-    }
-
     pub fn cinta(&self) -> String {
         let texto_cinta = Cintas::from_rango(self.rango).nombre().to_string();
         if self.rallita {
