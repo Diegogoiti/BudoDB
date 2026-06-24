@@ -281,91 +281,95 @@ pub fn Editar() -> Element {
 
     // 3. Renderizado principal
     rsx! {
-            div { class: "flex flex-col h-screen max-h-screen min-h-0 space-y-4 w-full mx-auto overflow-hidden",
-                // 💡 Cabecera fija unificada para todas las vistas
-                div { class: "text-center py-4 flex-none",
-                    h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
-                    p { class: "text-gray-500", "Modifica los datos personales y de grado del karateka." }
-                }
+        div { class: "flex flex-col h-screen max-h-screen min-h-0 space-y-4 w-full mx-auto overflow-hidden",
+            // 💡 Cabecera fija unificada para todas las vistas
+            div { class: "text-center py-4 flex-none",
+                h2 { class: "text-3xl font-bold text-gray-800", "Editar Alumno" }
+                p { class: "text-gray-500", "Modifica los datos personales y de grado del karateka." }
+            }
 
-                // El match ahora solo decide qué cuerpo de formulario inyectar abajo del título
-                match alum_seleccionados {
-                    0 => {
-                        rsx! {
-                            div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto justify-center items-center border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl p-8",
-                                svg {
-                                    class: "h-12 w-12 text-gray-400 mb-3",
-                                    fill: "none",
-                                    view_box: "0 0 24 24",
-                                    stroke_width: "1.5",
-                                    stroke: "currentColor",
-                                    path {
-                                        stroke_linecap: "round",
-                                        stroke_linejoin: "round",
-                                        d: "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-                                    }
+            // El match ahora solo decide qué cuerpo de formulario inyectar abajo del título
+            match alum_seleccionados {
+                0 => {
+                    rsx! {
+                        div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto justify-center items-center border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl p-8",
+                            svg {
+                                class: "h-12 w-12 text-gray-400 mb-3",
+                                fill: "none",
+                                view_box: "0 0 24 24",
+                                stroke_width: "1.5",
+                                stroke: "currentColor",
+                                path {
+                                    stroke_linecap: "round",
+                                    stroke_linejoin: "round",
+                                    d: "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
                                 }
-                                p { class: "text-gray-500 font-medium text-center text-balance max-w-sm",
-                                    "Seleccione al menos 1 estudiante para continuar con la edición."
-                                }
+                            }
+                            p { class: "text-gray-500 font-medium text-center text-balance max-w-sm",
+                                "Seleccione al menos 1 estudiante para continuar con la edición."
                             }
                         }
                     }
-                    1 => {
-                        let id = *estado.read().seleccionados.iter().next().unwrap();
-                        let contacto_valido = utils::contacto_valido(contacto.read().clone());
-                        let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
-                        let formulario_valido = (!nombre.read().is_empty(), fecha_valida, !representante.read().is_empty(), contacto_valido);
+                }
+                1 => {
+                    let id = *estado.read().seleccionados.iter().next().unwrap();
+                    let contacto_valido = utils::contacto_valido(contacto.read().clone());
+                    let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
+                    let formulario_valido = (!nombre.read().is_empty(), fecha_valida, !representante.read().is_empty(), contacto_valido);
 
-                        rsx! {
-                            div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
-                                Form {
-                                    nombre: nombre, fecha_nac: fecha_nac, rango: rango,
-                                    representante: representante, contacto: contacto, rallita: rallita,
-                                    campos_validos: formulario_valido,
+                    rsx! {
+                        div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
+                            Form {
+                                nombre: nombre, fecha_nac: fecha_nac, rango: rango,
+                                representante: representante, contacto: contacto, rallita: rallita,
+                                campos_validos: formulario_valido,
+                                on_click: move |_| {
+                                    let mut alumno = estado.read().get_alumno_by_id(id);
+                                    alumno.nombre = nombre.read().clone();
+                                    alumno.fecha_de_nacimiento = fecha_nac.read().clone();
+                                    alumno.rango = rango.read().clone();
+                                    alumno.representante = representante.read().clone();
+                                    alumno.numero_contacto = contacto.read().clone();
+                                    alumno.rallita = rallita.read().clone();
+
+                                    let _ = estado.read().database.update(&alumno);
+                                    estado.write().update();
+                                },
+                                texto_boton: "Guardar"
+                            }
+                        }
+                    }
+                }
+                2..=usize::MAX => {
+                    rsx! {
+                        // Quita "h-full" y agrega "flex-1 min-h-0" para que respete el título de arriba
+                        div { class: "flex flex-col flex-1 min-h-0 space-y-6 w-full",
+
+                            // El formulario se queda igual
+                            div { class: "w-full max-w-xl mx-auto flex-none",
+                                PromotionForm {
+                                    rango: rango,
+                                    rallita: rallita,
+                                    texto_boton: "Aplicar cambios",
                                     on_click: move |_| {
-                                        let mut alumno = estado.read().get_alumno_by_id(id);
-                                        alumno.nombre = nombre.read().clone();
-                                        alumno.fecha_de_nacimiento = fecha_nac.read().clone();
-                                        alumno.rango = rango.read().clone();
-                                        alumno.representante = representante.read().clone();
-                                        alumno.numero_contacto = contacto.read().clone();
-                                        alumno.rallita = rallita.read().clone();
-
-                                        let _ = estado.read().database.update(&alumno);
+                                        let ids_seleccionados = estado.read().seleccionados.clone();
+                                        let _ = estado.read().database.update_rangos(ids_seleccionados, *rango.read(), *rallita.read() );
                                         estado.write().update();
-                                    },
-                                    texto_boton: "Guardar"
-                                }
-                            }
-                        }
-                    }
-                    2..=usize::MAX => {
-                        rsx! {
-                            // Quita "h-full" y agrega "flex-1 min-h-0" para que respete el título de arriba
-                            div { class: "flex flex-col flex-1 min-h-0 space-y-6 w-full",
-
-                                // El formulario se queda igual
-                                div { class: "w-full max-w-xl mx-auto flex-none",
-                                    PromotionForm {
-                                        rango: rango,
-                                        rallita: rallita,
-                                        texto_boton: "Aplicar cambios",
-                                        on_click: move |_| {}
                                     }
                                 }
-
-                                // La DataTable suelta, igual que en Consulta, pero envuelta en un contenedor elástico
-                                //div { class: "w-full flex-1 min-h-0 overflow-auto",
-                                    DataTable { alumnos_lista: lista_seleccionados, estado: estado }
-
                             }
+
+                            // La DataTable suelta, igual que en Consulta, pero envuelta en un contenedor elástico
+                            //div { class: "w-full flex-1 min-h-0 overflow-auto",
+                                DataTable { alumnos_lista: lista_seleccionados, estado: estado }
+
                         }
                     }
-                    _ => { panic!("error"); }
                 }
+                _ => { panic!("error"); }
             }
         }
+    }
 }
 
 #[component]

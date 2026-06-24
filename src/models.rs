@@ -3,7 +3,8 @@
 
 use chrono::{Datelike, Local, NaiveDate};
 use rusqlite;
-use std::fmt;
+use rusqlite::{params_from_iter, Result, ToSql};
+use std::{collections::HashSet, fmt};
 
 ///modelo que maneja los datos delos alumnos para tratarlos como instancias independientes
 /// de manera mas organizada y clara, contiene metodos como cinta, rango_str o edad que son setters,
@@ -178,39 +179,51 @@ impl Database {
 
     pub fn update(&self, alumno: &Alumno) -> rusqlite::Result<()> {
         self.connection.execute(
-            "UPDATE alumnos SET nombre = ?1, fecha_de_nacimiento = ?2, rango = ?3, representante = ?4, numero_contacto = ?5 WHERE id = ?6",
+            "UPDATE alumnos SET nombre = ?1, fecha_de_nacimiento = ?2, rango = ?3, representante = ?4, numero_contacto = ?5, rallita = ?6 WHERE id = ?7",
             rusqlite::params![
                 alumno.nombre,
                 alumno.fecha_de_nacimiento,
                 alumno.rango,
                 alumno.representante,
                 alumno.numero_contacto,
+                alumno.rallita,
                 alumno.id
             ],
         )?;
         Ok(())
     }
 
-    pub fn update_rangos(&self, alumno: &Alumno) -> rusqlite::Result<()> {
-        self.connection.execute(
-            "UPDATE alumnos SET rango = ?1, rallita = ?2 WHERE id IN (?, ?, ?);",
-            rusqlite::params![
-                alumno.nombre,
-                alumno.fecha_de_nacimiento,
-                alumno.rango,
-                alumno.representante,
-                alumno.numero_contacto,
-                alumno.id
-            ],
-        )?;
-        Ok(())
-    }
+    pub fn update_rangos(
+        &self,
+        lista_ids: HashSet<usize>,
+        rango: i32,
+        rallita: bool,
+    ) -> Result<()> {
+        // 1. Generamos los comodines (?, ?, ...) según la cantidad de IDs
+        let cantidad_ids = lista_ids.len();
+        let comodines: String = std::iter::repeat("?")
+            .take(cantidad_ids)
+            .collect::<Vec<_>>()
+            .join(", ");
 
-    pub fn delete(&self, alumno_id: i32) -> rusqlite::Result<()> {
-        self.connection.execute(
-            "DELETE FROM alumnos WHERE id = ?1",
-            rusqlite::params![alumno_id],
-        )?;
+        // 2. Armamos la query dinámica sin números en los '?' para que vayan en orden
+        let query = format!(
+            "UPDATE alumnos SET rango = ?, rallita = ? WHERE id IN ({});",
+            comodines
+        );
+
+        // 3. Juntamos TODOS los parámetros en un solo vector de referencias en el orden exacto
+        let mut parametros: Vec<&dyn ToSql> = vec![&rango, &rallita];
+
+        // Agregamos las referencias de cada ID al vector
+        for id in &lista_ids {
+            parametros.push(id);
+        }
+
+        // 4. Ejecutamos la query pasando el iterador de parámetros
+        self.connection
+            .execute(&query, params_from_iter(parametros))?;
+
         Ok(())
     }
 
