@@ -398,8 +398,8 @@ pub fn Eliminar() -> Element {
 
 
                button {
-                   class: "w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
-                   onclick: move |_| { println!("presionado!!"); },
+                   class: "w-48 self-center py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
+                   onclick: move |_| { ; },
                    "Eliminar"
                }
 

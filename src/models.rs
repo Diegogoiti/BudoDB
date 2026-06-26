@@ -141,13 +141,14 @@ impl Database {
 
     pub fn save(&self, alumno: &Alumno) -> rusqlite::Result<()> {
         self.connection.execute(
-            "INSERT INTO alumnos (nombre, fecha_de_nacimiento, rango, representante, numero_contacto) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO alumnos (nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             rusqlite::params![
                 alumno.nombre,
                 alumno.fecha_de_nacimiento,
                 alumno.rango,
                 alumno.representante,
-                alumno.numero_contacto
+                alumno.numero_contacto,
+                alumno.rallita
             ],
         )?;
         Ok(())
@@ -227,7 +228,32 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_alumno_by_id(&self, id: i32) -> rusqlite::Result<Alumno> {
+    pub fn delete(&self, lista_ids: HashSet<usize>) -> Result<()> {
+        // 1. Generamos los comodines (?, ?, ...) según la cantidad de IDs
+        let cantidad_ids = lista_ids.len();
+        let comodines: String = std::iter::repeat("?")
+            .take(cantidad_ids)
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        // 2. Armamos la query dinámica de eliminación
+        let query = format!("DELETE FROM alumnos WHERE id IN ({});", comodines);
+
+        // 3. Juntamos las referencias de los IDs en el vector de parámetros
+        let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(cantidad_ids);
+
+        for id in &lista_ids {
+            parametros.push(id);
+        }
+
+        // 4. Ejecutamos la query pasando el iterador de parámetros
+        self.connection
+            .execute(&query, params_from_iter(parametros))?;
+
+        Ok(())
+    }
+
+    /*pub fn get_alumno_by_id(&self, id: i32) -> rusqlite::Result<Alumno> {
         self.connection.query_row(
         "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita FROM alumnos WHERE id = ?1",
         rusqlite::params![id],
@@ -243,7 +269,7 @@ impl Database {
                 })
         },
     )
-    }
+    }*/
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
