@@ -374,15 +374,36 @@ pub fn Editar() -> Element {
 
 #[component]
 pub fn Eliminar() -> Element {
-    rsx! {
-        div { class: "space-y-4",
-            h2 { class: "text-3xl font-bold text-gray-800", "Eliminar Alumno" }
-            p { class: "text-gray-600", "Aquí podrás eliminar alumnos del sistema." }
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
+    let mut lista_alumnos = use_signal(Vec::new);
 
-            // Un pequeño indicador de que la vista cargó
-            div { class: "p-10 border-2 border-dashed border-gray-300 rounded-xl text-center",
-                "Funcionalidad de eliminación de alumno (Próximamente)"
-            }
+    use_effect(move || {
+        let mut temporal = vec![];
+
+        for id in estado.read().seleccionados.iter() {
+            temporal.push(estado.read().get_alumno_by_id(*id));
+        }
+
+        lista_alumnos.set(temporal);
+    });
+
+    rsx! {
+        div { class: "flex flex-col h-full space-y-4 max-w-2xl mx-auto",
+               // Encabezado
+               div { class: "text-center py-4",
+                   h2 { class: "text-3xl font-bold text-gray-800", "Eliminar Alumno" },
+                   p { class: "text-gray-500", "Ingresa los datos personales y de grado del karateka." }
+               }
+
+
+
+               button {
+                   class: "w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
+                   onclick: move |_| { println!("presionado!!"); },
+                   "Eliminar"
+               }
+
+               DataTable { alumnos_lista: lista_alumnos, estado: estado }
         }
     }
 }
