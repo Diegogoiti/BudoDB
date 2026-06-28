@@ -399,7 +399,12 @@ pub fn Eliminar() -> Element {
 
                button {
                    class: "w-48 self-center py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
-                   onclick: move |_| { ; },
+                   onclick: move |_| {
+                       let set_ids = estado.read().seleccionados.clone();
+                       let _ = estado.write().database.delete(set_ids);
+                       estado.write().seleccionados.clear();
+                       estado.write().update();
+                   },
                    "Eliminar"
                }
 
