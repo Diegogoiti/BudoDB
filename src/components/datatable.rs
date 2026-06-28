@@ -53,12 +53,12 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                             td { class: "px-4 py-3 font-mono text-gray-500", "#{alumno.id}" }
                             td { class: "px-4 py-3 font-bold text-white", "{alumno.nombre}" }
                             td { class: "px-4 py-3",
-                                span { class: "px-2 py-1 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300",
+                                span { class: "inline-flex items-center justify-center min-w-36 px-3 py-1.5 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300 whitespace-nowrap",
                                     "{alumno.cinta()}"
                                 }
                             }
                                                         td { class: "px-4 py-3",
-                                span { class: "px-2 py-1 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300",
+                                span { class: "inline-flex items-center justify-center min-w-20 px-2 py-1.5 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300 whitespace-nowrap",
                                     "{alumno.rango()}"
                                 }
                             }
