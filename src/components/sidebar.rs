@@ -36,7 +36,7 @@ pub fn Sidebar() -> Element {
                 }
                 div { class: "p-4 bg-gray-950 text-center border-t border-gray-800",
                     p { class: "text-[10px] text-gray-500 tracking-widest",
-                        "BudoDB V0.1.0-ALPHA"
+                        "BudoDB V0.0.1-BETA"
                     }
                     p { class: "text-[10px] text-gray-500 tracking-widest",
                         "© 2026 Diego Andrés Goitia Márquez. All rights reserved."

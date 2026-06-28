@@ -43,10 +43,9 @@ def llenar_db():
         "Diaz",
     ]
     rangos = [x for x in range(0, 11)]  # Tus niveles de cinta
-
-    print("Insertando 100 alumnos de prueba...")
-
     cantidad_alumnos = 300
+    print(f"Insertando {cantidad_alumnos} alumnos de prueba...")
+
     for i in range(cantidad_alumnos):
         nombre_completo = f"{random.choice(nombres)} {random.choice(apellidos)}"
         fecha = generar_fecha()
