@@ -214,7 +214,7 @@ pub fn Agregar() -> Element {
                 numero_contacto: contacto.read().clone(),
                 rango: rango.read().clone(),
                 representante: representante.read().clone(),
-                rallita: rallita.read().clone()
+                rallita:  if rango.read().clone() <= 0 {false} else {rallita.read().clone()}
 
 
             };
@@ -225,7 +225,7 @@ pub fn Agregar() -> Element {
             fecha_nac.set("".to_string());
             representante.set("".to_string());
             contacto.set("".to_string());
-            rallita.set(false);
+
             rango.set(10);
         }, texto_boton: "Guardar"}
 
