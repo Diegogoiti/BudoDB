@@ -150,41 +150,60 @@ pub fn Form(
 
                 {
                     if rango.read().clone() > 0 {
-                        rsx! {
-                            label { class: "flex items-center space-x-3 p-[11px] bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700/50 transition-colors h-[42px]",
-                                input {
-                                    r#type: "checkbox",
-                                    class: "w-5 h-5 rounded accent-blue-500 bg-gray-900 border-gray-700 focus:ring-blue-500/50 cursor-pointer",
-                                    checked: "{rallita}",
-                                    onchange: move |_| rallita.set(!rallita.cloned())
-                                }
-                                span { class: "text-sm font-medium text-gray-300 select-none", "Grado con Rallita" }
-                            }
-                        }
-                    } else {
-                        rsx! {
-                            div { class: "flex flex-col space-y-1 w-full",
-                                select {
-                                    class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
-                                    onchange: move |e| {
-                                        if let Ok(dan) = e.value().parse::<i32>() {
-                                            println!("Dan seleccionado: {}", dan);
-                                            let mut val = dan;
-                                            val = val * -1;
-                                            val = val +1;
-                                            println!("valor a guardar: {}",val);
-                                            rango.set(val);
+                                            rsx! {
+                                                label { class: "flex items-center space-x-3 p-[11px] bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700/50 transition-colors h-[42px]",
+                                                    input {
+                                                        r#type: "checkbox",
+                                                        class: "w-5 h-5 rounded accent-blue-500 bg-gray-900 border-gray-700 focus:ring-blue-500/50 cursor-pointer",
+                                                        checked: "{rallita}",
+                                                        onchange: move |_| rallita.set(!rallita.cloned())
+                                                    }
+                                                    span { class: "text-sm font-medium text-gray-300 select-none", "Grado con Rallita" }
+                                                }
+                                            }
+                                        } else {
+                                            rsx! {
+                                                div { class: "flex flex-col space-y-1 w-full",
+                                                    // CORRECCIÓN AQUÍ: Contenedor idéntico con posición relativa
+                                                    div { class: "relative w-full flex items-center",
+                                                        select {
+                                                            // Agregado 'pr-10' y la propiedad 'style' para WebKit
+                                                            class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
+                                                            style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
+                                                            onchange: move |e| {
+                                                                if let Ok(dan) = e.value().parse::<i32>() {
+                                                                    println!("Dan seleccionado: {}", dan);
+                                                                    let mut val = dan;
+                                                                    val = val * -1;
+                                                                    val = val +1;
+                                                                    println!("valor a guardar: {}",val);
+                                                                    rango.set(val);
+                                                                }
+                                                            },
+                                                            {(1..=10).map(|dan| rsx! {
+                                                                option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
+                                                            })}
+                                                        }
+
+                                                        // Flecha manual idéntica para el dropdown de Danes
+                                                        div {
+                                                            class: "pointer-events-none absolute text-gray-400 flex items-center",
+                                                            style: "right: 12px; top: 50%; transform: translateY(-50%);",
+                                                            svg {
+                                                                class: "w-4 h-4",
+                                                                fill: "none",
+                                                                stroke: "currentColor",
+                                                                view_box: "0 0 24 24",
+                                                                stroke_width: "2",
+                                                                path { stroke_linecap: "round", stroke_linejoin: "round", d: "M19 9l-7 7-7-7" }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
-                                    },
-                                    {(1..=10).map(|dan| rsx! {
-                                        option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
-                                    })}
+                                    }
                                 }
-                            }
-                        }
-                    }
-                }
-            }
 
             button {
                 class: color_btn,
