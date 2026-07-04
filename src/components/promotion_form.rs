@@ -33,48 +33,63 @@ pub fn PromotionForm(
                 // Columna Izquierda: Selección de Cinta
                 div { class: "flex flex-col space-y-1",
                     label { class: "text-sm font-semibold text-gray-400", "Cinta" }
-                    select {
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
-                        // Permitimos que "99" sea un valor válido para que coincida con el placeholder inicial
-                        value: {
-                            let r = *rango.read();
-                            if r == 99 { "99".to_string() } else if r <= 0 { "0".to_string() } else { r.to_string() }
-                        },
-                        onchange: move |e| {
-                            if let Ok(val) = e.value().parse::<i32>() {
-                                modificado.set(true); // Persiste el cambio correctamente
-                                rango.set(val);
-                            }
-                        },
+                    div { class: "relative w-full flex items-center",
+                        select {
+                            class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
+                            value: {
+                                let r = *rango.read();
+                                if r == 99 { "99".to_string() } else if r <= 0 { "0".to_string() } else { r.to_string() }
+                            },
+                            style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
+                            onchange: move |e| {
+                                if let Ok(val) = e.value().parse::<i32>() {
+                                    modificado.set(true); // Persiste el cambio correctamente
+                                    rango.set(val);
+                                }
+                            },
 
-                        // Placeholder neutro inicial
-                        option {
-                            class: "bg-gray-900 text-gray-400 font-semibold",
-                            value: "99",
-                            selected: *rango.read() == 99,
-                            disabled: true,
-                            "-- Seleccionar Grado --"
+                            // Placeholder neutro inicial
+                            option {
+                                class: "bg-gray-900 text-gray-400 font-semibold",
+                                value: "99",
+                                selected: *rango.read() == 99,
+                                disabled: true,
+                                "-- Seleccionar Grado --"
+                            }
+
+                            {Cintas::all_variants().iter().map(|cinta| {
+                                let v_cinta = cinta.valor();
+                                let r_actual = *rango.read();
+
+                                let is_selected = r_actual != 99 && (if r_actual <= 0 {
+                                    v_cinta == 0
+                                } else {
+                                    v_cinta as i32 == r_actual
+                                });
+
+                                rsx! {
+                                    option {
+                                        class: "bg-gray-900",
+                                        value: "{v_cinta}",
+                                        selected: is_selected,
+                                        "{cinta.label()}"
+                                    }
+                                }
+                            })}
                         }
 
-                        {Cintas::all_variants().iter().map(|cinta| {
-                            let v_cinta = cinta.valor();
-                            let r_actual = *rango.read();
-
-                            let is_selected = r_actual != 99 && (if r_actual <= 0 {
-                                v_cinta == 0
-                            } else {
-                                v_cinta as i32 == r_actual
-                            });
-
-                            rsx! {
-                                option {
-                                    class: "bg-gray-900",
-                                    value: "{v_cinta}",
-                                    selected: is_selected,
-                                    "{cinta.label()}"
-                                }
+                        div {
+                            class: "pointer-events-none absolute text-gray-400 flex items-center",
+                            style: "right: 12px; top: 50%; transform: translateY(-50%);",
+                            svg {
+                                class: "w-4 h-4",
+                                fill: "none",
+                                stroke: "currentColor",
+                                view_box: "0 0 24 24",
+                                stroke_width: "2",
+                                path { stroke_linecap: "round", stroke_linejoin: "round", d: "M19 9l-7 7-7-7" }
                             }
-                        })}
+                        }
                     }
                 }
 
@@ -100,19 +115,35 @@ pub fn PromotionForm(
                     } else {
                         rsx! {
                             div { class: "flex flex-col space-y-1 w-full",
-                                select {
-                                    class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
-                                    onchange: move |e| {
-                                        if let Ok(dan) = e.value().parse::<i32>() {
-                                            let mut val = dan;
-                                            val = val * -1;
-                                            val = val + 1;
-                                            rango.set(val);
+                                div { class: "relative w-full flex items-center",
+                                    select {
+                                        class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
+                                        style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
+                                        onchange: move |e| {
+                                            if let Ok(dan) = e.value().parse::<i32>() {
+                                                let mut val = dan;
+                                                val = val * -1;
+                                                val = val + 1;
+                                                rango.set(val);
+                                            }
+                                        },
+                                        {(1..=10).map(|dan| rsx! {
+                                            option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
+                                        })}
+                                    }
+
+                                    div {
+                                        class: "pointer-events-none absolute text-gray-400 flex items-center",
+                                        style: "right: 12px; top: 50%; transform: translateY(-50%);",
+                                        svg {
+                                            class: "w-4 h-4",
+                                            fill: "none",
+                                            stroke: "currentColor",
+                                            view_box: "0 0 24 24",
+                                            stroke_width: "2",
+                                            path { stroke_linecap: "round", stroke_linejoin: "round", d: "M19 9l-7 7-7-7" }
                                         }
-                                    },
-                                    {(1..=10).map(|dan| rsx! {
-                                        option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
-                                    })}
+                                    }
                                 }
                             }
                         }
