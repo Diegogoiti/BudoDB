@@ -16,20 +16,14 @@ pub fn Form(
 ) -> Element {
     fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
         if !intentando || es_valido {
-            // Normal: Borde oscuro, ring azul sutil al enfocar
             "border border-gray-700 focus:ring-2 focus:ring-blue-500/50"
         } else {
-            // Error: Borde rojo, ring rojo (más intenso)
             "border border-red-500 ring-2 ring-red-500/30 focus:ring-red-500/50"
         }
     }
 
-    //let mut estado = use_context::<Signal<MyApp>>();
-
     let mut intentado = use_signal(|| false);
-
     let (nombre_valido, fecha_valida, representante_valido, contacto_valido) = campos_validos;
-
     let form_valido = nombre_valido && fecha_valida && representante_valido && contacto_valido;
 
     let color_btn = if form_valido {
@@ -39,7 +33,6 @@ pub fn Form(
     };
 
     rsx! {
-        // Contenedor del Formulario
         div { class: "flex-1 flex flex-col justify-around bg-gray-800 p-8 rounded-2xl shadow-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl text-gray-100 ",
 
             // Campo: Nombre
@@ -69,41 +62,57 @@ pub fn Form(
                 // Campo: Grado / Cinta
                 div { class: "flex flex-col space-y-1",
                     label { class: "text-sm font-semibold text-gray-400", "Cinta" }
-                    select {
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
-                        value: {
-                            let r = *rango.read();
-                            if r <= 0 { "0".to_string() } else { r.to_string() }
-                        },
-                        onchange: move |e| {
-                            if let Ok(val) = e.value().parse::<i32>() {
-                                println!("valor_rango: {}", &val);
-                                rango.set(val);
-                            }
-                        },
-                        {Cintas::all_variants().iter().map(|cinta| {
-                            let v_cinta = cinta.valor();
-                            let r_actual = *rango.read();
-
-                            // Determina si esta opción específica debe estar marcada
-                            let is_selected = if r_actual <= 0 {
-                                v_cinta == 0
-                            } else {
-                                v_cinta == r_actual as u32
-                            };
-
-                            rsx! {
-                                option {
-                                    class: "bg-gray-900",
-                                    value: "{v_cinta}",
-                                    selected: is_selected,
-                                    "{cinta.label()}"
+                    div { class: "relative w-full flex items-center",
+                        select {
+                            // pr-10 evita que el texto largo pise la flecha
+                            class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer",
+                            value: {
+                                let r = *rango.read();
+                                if r <= 0 { "0".to_string() } else { r.to_string() }
+                            },
+                            style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
+                            onchange: move |e| {
+                                if let Ok(val) = e.value().parse::<i32>() {
+                                    println!("valor_rango: {}", &val);
+                                    rango.set(val);
                                 }
+                            },
+                            {Cintas::all_variants().iter().map(|cinta| {
+                                let v_cinta = cinta.valor();
+                                let r_actual = *rango.read();
+
+                                let is_selected = if r_actual <= 0 {
+                                    v_cinta == 0
+                                } else {
+                                    v_cinta == r_actual as u32
+                                };
+
+                                rsx! {
+                                    option {
+                                        class: "bg-gray-900",
+                                        value: "{v_cinta}",
+                                        selected: is_selected,
+                                        "{cinta.label()}"
+                                    }
+                                }
+                            })}
+                        }
+
+                        // CORRECCIÓN AQUÍ: Forzamos la posición derecha con inline style para WebKit
+                        div {
+                            class: "pointer-events-none absolute text-gray-400 flex items-center",
+                            style: "right: 12px; top: 50%; transform: translateY(-50%);",
+                            svg {
+                                class: "w-4 h-4",
+                                fill: "none",
+                                stroke: "currentColor",
+                                view_box: "0 0 24 24",
+                                stroke_width: "2",
+                                path { stroke_linecap: "round", stroke_linejoin: "round", d: "M19 9l-7 7-7-7" }
                             }
-                        })}
+                        }
                     }
-                }
-            }
+                }}
 
             // Campo: Representante
             div { class: "flex flex-col space-y-1",
@@ -139,8 +148,6 @@ pub fn Form(
                     }
                 }
 
-                // Checkbox de Rallita (Unificado al Modo Oscuro)
-
                 {
                     if rango.read().clone() > 0 {
                         rsx! {
@@ -161,7 +168,6 @@ pub fn Form(
                                     class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
                                     onchange: move |e| {
                                         if let Ok(dan) = e.value().parse::<i32>() {
-
                                             println!("Dan seleccionado: {}", dan);
                                             let mut val = dan;
                                             val = val * -1;
@@ -183,18 +189,10 @@ pub fn Form(
             button {
                 class: color_btn,
                 onclick: move |_| {
-
-
                     if form_valido {
                         println!("Formulario válido, se puede agregar el alumno.");
-                        //let _ = estado.read().database.save(&alumno);
-
-
                         on_click.call(());
-
-                        // 3. Reiniciamos el indicador de intentos de validación
                         intentado.set(false);
-
                     } else {
                         println!("Formulario inválido, por favor corrige los errores.");
                         intentado.set(true);
