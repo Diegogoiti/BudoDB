@@ -365,24 +365,4 @@ impl Cintas {
             Cintas::Negra => 0,
         }
     }
-
-    pub fn nombres() -> &'static [&'static str] {
-        &[
-            "Blanca",
-            "Celeste",
-            "Amarilla",
-            "Naranja",
-            "Verde",
-            "Azul 1",
-            "Azul 2",
-            "Marrón 1",
-            "Marrón 2",
-            "Marrón 3",
-            "Negra",
-        ]
-    }
-
-    pub fn valores() -> &'static [u32] {
-        &[10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
-    }
 }

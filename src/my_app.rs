@@ -6,6 +6,7 @@ pub enum Columnas {
     Id,
     Nombre,
     Edad,
+    #[allow(dead_code)]
     FechaNacimiento,
     Representante,
     Telefono,
