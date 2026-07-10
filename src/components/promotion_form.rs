@@ -157,6 +157,7 @@ pub fn PromotionForm(
                 onclick: move |_| {
                     if *modificado.read() {
                         on_click.call(());
+                        *modificado.write() = false;
                     }
                 },
                 {texto_boton}
