@@ -14,7 +14,7 @@ pub enum Columnas {
 }
 
 ///estructura que maneja los datos de los alumnos y la ui en memoria
-/// ademas de almacenar la coneccion de la db
+/// ademas de almacenar la coneccion de la db y el estado de la aplicacion
 pub struct MyApp {
     pub alumnos: Vec<Alumno>,
     pub seleccionados: HashSet<usize>,

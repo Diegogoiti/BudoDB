@@ -47,10 +47,15 @@ pub fn Home() -> Element {
 
             DataTable { alumnos_lista, estado }
 
-            // Pie de tabla con resumen
-            div { class: "text-gray-500 text-xs",
-                "Mostrando {estado.read().alumnos.len()} alumnos registrados"
+            div { class: "flex  justify-between items-center ",
+                div { class: "text-gray-500 text-xs ",
+                    "Mostrando {estado.read().alumnos.len()} alumnos registrados"
+                }
+                div { class: "text-gray-500 text-xs ",
+                    "alumnos seleccionados: {estado.read().seleccionados.len()}"
+                }
             }
+
         }
     }
 }
