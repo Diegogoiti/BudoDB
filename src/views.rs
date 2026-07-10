@@ -225,8 +225,9 @@ pub fn Agregar() -> Element {
             fecha_nac.set("".to_string());
             representante.set("".to_string());
             contacto.set("".to_string());
-
+            rallita.set(false);
             rango.set(10);
+
         }, texto_boton: "Guardar"}
 
 
