@@ -48,7 +48,7 @@ impl Alumno {
         } else {
             "??".to_string()
         };
-        edad
+        format!("{edad}")
     }
 
     pub fn rango(&self) -> String {

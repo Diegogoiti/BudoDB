@@ -112,6 +112,15 @@ pub fn Buscar() -> Element {
                 initial_param: my_app::Columnas::Nombre,
             }
             DataTable { alumnos_lista: alumnos_filtrados, estado }
+
+            div { class: "flex  justify-between items-center ",
+                div { class: "text-gray-500 text-xs ",
+                    "Mostrando {alumnos_filtrados.read().len()} alumnos en pantalla"
+                }
+                div { class: "text-gray-500 text-xs ",
+                    "alumnos seleccionados: {estado.read().seleccionados.len()}"
+                }
+            }
         }
 
     }
@@ -175,6 +184,15 @@ pub fn Filtrar() -> Element {
             }
 
             DataTable { alumnos_lista: alumnos_filtrados, estado }
+
+            div { class: "flex  justify-between items-center ",
+                div { class: "text-gray-500 text-xs ",
+                    "Mostrando {alumnos_filtrados.read().len()} alumnos filtrados"
+                }
+                div { class: "text-gray-500 text-xs ",
+                    "alumnos seleccionados: {estado.read().seleccionados.len()}"
+                }
+            }
         }
     }
 }
@@ -369,6 +387,12 @@ pub fn Editar() -> Element {
                             //div { class: "w-full flex-1 min-h-0 overflow-auto",
                                 DataTable { alumnos_lista: lista_seleccionados, estado: estado }
 
+                                div { class: "flex justify-end items-center w-full",
+                                    div { class: "text-gray-500 text-xs",
+                                        "alumnos seleccionados: {estado.read().seleccionados.len()}"
+                                    }
+                                }
+
                         }
                     }
                 }
@@ -415,6 +439,11 @@ pub fn Eliminar() -> Element {
                }
 
                DataTable { alumnos_lista: lista_alumnos, estado: estado }
+               div { class: "flex justify-end items-center w-full",
+                   div { class: "text-gray-500 text-xs",
+                       "alumnos que serán afectados: {estado.read().seleccionados.len()}"
+                   }
+               }
         }
     }
 }
