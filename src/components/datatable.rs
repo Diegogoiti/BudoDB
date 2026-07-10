@@ -12,7 +12,7 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
     rsx! {
 
         div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl ",
-            table { class: "w-full border-collapse text-left text-xs md:text-sm",
+            table { class: "w-full border-collapse text-left text-xs md:text-sm table-auto",
                 thead {
                     // sticky y top-0 mantienen la fila visible al bajar
                     tr { class: "sticky top-0 text-white bg-gray-800",
@@ -51,7 +51,7 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                                 }
                             }
                             td { class: "px-4 py-3 font-mono text-gray-500", "#{alumno.id}" }
-                            td { class: "px-4 py-3 font-bold text-white", "{alumno.nombre}" }
+                            td { class: "px-4 py-3 font-bold text-white whitespace-nowrap", "{alumno.nombre}" }
                             td { class: "px-4 py-3",
                                 span { class: "inline-flex items-center justify-center min-w-36 px-3 py-1.5 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300 whitespace-nowrap",
                                     "{alumno.cinta()}"
@@ -62,10 +62,10 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                                     "{alumno.rango()}"
                                 }
                             }
-                            td { class: "px-4 py-3", "{alumno.edad()}" }
+                            td { class: "px-4 py-3 whitespace-nowrap", "{alumno.edad()}" }
                             td { class: "px-4 py-3", "{alumno.fecha_de_nacimiento}" }
-                            td { class: "px-4 py-3", "{alumno.representante}" }
-                            td { class: "px-4 py-3 text-blue-400 font-mono",
+                            td { class: "px-4 py-3 whitespace-nowrap", "{alumno.representante}" }
+                            td { class: "px-4 py-3 text-blue-400 font-mono whitespace-nowrap",
                                 "{alumno.numero_contacto}"
                             }
                         }
