@@ -39,12 +39,12 @@ pub fn DataTable(
                             class: {
                                 let es_seleccionado = estado.read().seleccionados.contains(&alumno.id);
                                 let base = if aplicar_color_seleccion && es_seleccionado {
-                                    "bg-blue-500"
+                                    "bg-blue-500 hover:bg-blue-700 transition-colors"
                                 } else {
-                                    if i % 2 == 0 { "bg-gray-825" } else { "bg-gray-800" }
+                                    if i % 2 == 0 { "bg-gray-850 hover:bg-gray-700 transition-colors" } else { "bg-gray-800 hover:bg-gray-700 transition-colors" }
                                 };
-                                    let hover = "hover:bg-gray-750";
-                                    format!("{} {} transition-colors", base, hover)
+                                //let hover = "bg-gray-750";
+                                base
                                 },
                             onclick: move |_| {
                                 estado.write().toggle_seleccion(alumno.id);
