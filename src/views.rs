@@ -3,6 +3,7 @@
 
 //use std::string;
 
+//use std::intrinsics::fabs;
 use std::{usize, vec};
 
 use crate::components::datatable::DataTable;
@@ -45,7 +46,7 @@ pub fn Home() -> Element {
                 }
             }
 
-            DataTable { alumnos_lista, estado }
+            DataTable { alumnos_lista, estado, aplicar_color_seleccion: true }
 
             div { class: "flex  justify-between items-center ",
                 div { class: "text-gray-500 text-xs ",
@@ -111,7 +112,7 @@ pub fn Buscar() -> Element {
                 placeholder: "Buscar alumno...".to_string(),
                 initial_param: my_app::Columnas::Nombre,
             }
-            DataTable { alumnos_lista: alumnos_filtrados, estado }
+            DataTable { alumnos_lista: alumnos_filtrados, estado, aplicar_color_seleccion: true  }
 
             div { class: "flex  justify-between items-center ",
                 div { class: "text-gray-500 text-xs ",
@@ -183,7 +184,7 @@ pub fn Filtrar() -> Element {
                 initial_param: my_app::Columnas::Cinta,
             }
 
-            DataTable { alumnos_lista: alumnos_filtrados, estado }
+            DataTable { alumnos_lista: alumnos_filtrados, estado, aplicar_color_seleccion: true  }
 
             div { class: "flex  justify-between items-center ",
                 div { class: "text-gray-500 text-xs ",
@@ -385,7 +386,7 @@ pub fn Editar() -> Element {
 
                             // La DataTable suelta, igual que en Consulta, pero envuelta en un contenedor elástico
                             //div { class: "w-full flex-1 min-h-0 overflow-auto",
-                                DataTable { alumnos_lista: lista_seleccionados, estado: estado }
+                                DataTable { alumnos_lista: lista_seleccionados, estado: estado, aplicar_color_seleccion: false }
 
                                 div { class: "flex justify-end items-center w-full",
                                     div { class: "text-gray-500 text-xs",
@@ -438,7 +439,7 @@ pub fn Eliminar() -> Element {
                    "Eliminar"
                }
 
-               DataTable { alumnos_lista: lista_alumnos, estado: estado }
+               DataTable { alumnos_lista: lista_alumnos, estado: estado, aplicar_color_seleccion: false }
                div { class: "flex justify-end items-center w-full",
                    div { class: "text-gray-500 text-xs",
                        "alumnos que serán afectados: {estado.read().seleccionados.len()}"

@@ -6,7 +6,11 @@ use dioxus::prelude::*;
 ///componente que recibe un contexto con una clase myapp y clona el vertor alumnos
 /// para dibujar la tabla de los datos en la ventana
 #[component]
-pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyApp>) -> Element {
+pub fn DataTable(
+    alumnos_lista: Signal<Vec<Alumno>>,
+    estado: Signal<my_app::MyApp>,
+    aplicar_color_seleccion: bool,
+) -> Element {
     let alumnos = alumnos_lista.read().clone();
     let nav = use_navigator();
     rsx! {
@@ -30,9 +34,18 @@ pub fn DataTable(alumnos_lista: Signal<Vec<Alumno>>, estado: Signal<my_app::MyAp
                     }
                 }
                 tbody { class: "divide-y divide-gray-800 text-gray-300",
-                    for alumno in alumnos {
+                    for (i, alumno) in alumnos.into_iter().enumerate() {
                         tr {
-                            class: "hover:bg-gray-800/50 transition-colors",
+                            class: {
+                                let es_seleccionado = estado.read().seleccionados.contains(&alumno.id);
+                                let base = if aplicar_color_seleccion && es_seleccionado {
+                                    "bg-blue-500"
+                                } else {
+                                    if i % 2 == 0 { "bg-gray-825" } else { "bg-gray-800" }
+                                };
+                                    let hover = "hover:bg-gray-750";
+                                    format!("{} {} transition-colors", base, hover)
+                                },
                             onclick: move |_| {
                                 estado.write().toggle_seleccion(alumno.id);
                             },
