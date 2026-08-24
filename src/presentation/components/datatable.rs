@@ -104,16 +104,23 @@ pub fn DataTable(
                     }
 
                     for (i, alumno) in ventana {
+                        // key por ID: al deslizar la ventana, dioxus mueve los
+                        // nodos existentes en vez de reciclarlos para otra
+                        // fila (eso cambiaba el fondo de cada tr en pantalla).
                         tr {
+                            key: "{alumno.id}",
                             style: "height:{ALTO_FILA_PX}px",
+                            // Sin transition-colors: al reciclarse nodos durante
+                            // el scroll, la transición animaba el cambio de gris
+                            // y hacía "parpadear" el rayado cebra.
                             class: {
                                 let es_seleccionado = estado.read().seleccionados.contains(&alumno.id);
                                 // Rayado cebra con clases que EXISTEN en el
                                 // CSS compilado (gray-850 no existe).
                                 let base = if aplicar_color_seleccion && es_seleccionado {
-                                    "bg-blue-500 hover:bg-blue-700 transition-colors"
+                                    "bg-blue-500 hover:bg-blue-700"
                                 } else {
-                                    if i % 2 == 0 { "bg-gray-900 hover:bg-gray-700 transition-colors" } else { "bg-gray-800 hover:bg-gray-700 transition-colors" }
+                                    if i % 2 == 0 { "bg-gray-900 hover:bg-gray-700" } else { "bg-gray-800 hover:bg-gray-700" }
                                 };
                                 //let hover = "bg-gray-750";
                                 base
