@@ -1,5 +1,9 @@
-use crate::application::ports::AlumnoRepository;
-use crate::models::Alumno;
+use crate::application::dto::DatosAlumno;
+use crate::application::error::ErrorAplicacion;
+use crate::application::ports::Logger;
+use crate::application::service::ServicioAlumnos;
+use crate::domain::{Alumno, Cintas};
+use chrono::Local;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -15,28 +19,71 @@ pub enum Columnas {
     Cinta,
 }
 
-///estructura que maneja los datos de los alumnos y la ui en memoria
-/// ademas de almacenar la coneccion de la db y el estado de la aplicacion
+/// ViewModel de presentación: caché en memoria de alumnos + selección.
+/// Toda la persistencia se delega en los casos de uso de `application`;
+/// ya NO expone su repositorio interno (regla 3).
 pub struct MyApp {
     pub alumnos: Vec<Alumno>,
     pub seleccionados: HashSet<usize>,
-    /// TEMPORAL (fase 2): acceso vía puerto. En la fase 3 se vuelve privado
-    /// y las vistas delegan en casos de uso.
-    pub repositorio: Arc<dyn AlumnoRepository>,
+    servicio: Arc<ServicioAlumnos>,
+    logger: Arc<dyn Logger>,
 }
 
 impl MyApp {
     /// Constructor con dependencias inyectadas. Solo lo invoca el composition root.
-    pub fn new(alumnos: Vec<Alumno>, repositorio: Arc<dyn AlumnoRepository>) -> Self {
+    pub fn new(
+        alumnos: Vec<Alumno>,
+        servicio: Arc<ServicioAlumnos>,
+        logger: Arc<dyn Logger>,
+    ) -> Self {
         Self {
             alumnos,
             seleccionados: HashSet::new(),
-            repositorio,
+            servicio,
+            logger,
         }
     }
 
-    pub fn update(&mut self) {
-        self.alumnos = self.repositorio.fetch_all().unwrap();
+    /// Recarga la lista desde el caso de uso. Si falla: log y se conserva
+    /// la lista previa (política de error uniforme de la app).
+    fn refrescar(&mut self) {
+        match self.servicio.obtener_todos() {
+            Ok(alumnos) => self.alumnos = alumnos,
+            Err(error) => self
+                .logger
+                .error(&format!("No se pudo refrescar la lista de alumnos: {error}")),
+        }
+    }
+
+    /// Caso de uso: registrar un alumno y refrescar la lista.
+    pub fn agregar_alumno(&mut self, datos: DatosAlumno) -> Result<(), ErrorAplicacion> {
+        self.servicio.agregar(datos)?;
+        self.refrescar();
+        Ok(())
+    }
+
+    /// Caso de uso: editar un alumno existente y refrescar la lista.
+    pub fn actualizar_alumno(&mut self, id: usize, datos: DatosAlumno) -> Result<(), ErrorAplicacion> {
+        self.servicio.actualizar(id, datos)?;
+        self.refrescar();
+        Ok(())
+    }
+
+    /// Caso de uso: promover masivamente a los alumnos seleccionados.
+    pub fn promover_seleccionados(&mut self, rango: i32, rallita: bool) -> Result<(), ErrorAplicacion> {
+        let ids = self.seleccionados.clone();
+        self.servicio.promover(ids, rango, rallita)?;
+        self.refrescar();
+        Ok(())
+    }
+
+    /// Caso de uso: eliminar a los seleccionados, limpiar la selección y refrescar.
+    pub fn eliminar_seleccionados(&mut self) -> Result<(), ErrorAplicacion> {
+        let ids = self.seleccionados.clone();
+        self.servicio.eliminar(ids)?;
+        self.seleccionados.clear();
+        self.refrescar();
+        Ok(())
     }
 
     pub fn toggle_seleccion(&mut self, id: usize) {
@@ -112,10 +159,11 @@ impl MyApp {
         if edad.is_empty() {
             return self.alumnos.clone();
         }
+        let hoy = Local::now().date_naive();
         self.alumnos
             .iter()
             .cloned()
-            .filter(|a| a.edad() == edad)
+            .filter(|a| a.edad(hoy) == edad)
             .collect()
     }
 
@@ -128,23 +176,18 @@ impl MyApp {
             .iter()
             .cloned()
             .filter(|a| {
-                let cinta_alumno = crate::models::Cintas::from_rango(a.rango);
+                let cinta_alumno = Cintas::from_rango(a.rango);
 
                 let cinta = match cinta_label.as_str() {
                     "Azul (todos)" => {
                         // Comparamos contra las variantes exactas del Enum
-                        matches!(
-                            cinta_alumno,
-                            crate::models::Cintas::Azul1 | crate::models::Cintas::Azul2
-                        )
+                        matches!(cinta_alumno, Cintas::Azul1 | Cintas::Azul2)
                     }
                     "Marrón (todos)" => {
                         // Comparamos contra las variantes exactas del Enum
                         matches!(
                             cinta_alumno,
-                            crate::models::Cintas::Marron1
-                                | crate::models::Cintas::Marron2
-                                | crate::models::Cintas::Marron3
+                            Cintas::Marron1 | Cintas::Marron2 | Cintas::Marron3
                         )
                     }
                     // Para etiquetas individuales ("Blanca", "Azul 1"), usamos .label()

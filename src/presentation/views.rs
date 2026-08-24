@@ -6,9 +6,8 @@
 //use std::intrinsics::fabs;
 use std::{usize, vec};
 
+use crate::application::dto::DatosAlumno;
 use crate::application::validation::*;
-use crate::models::Alumno;
-//use crate::models::{Alumno, Cintas, Database};
 use crate::presentation::components::datatable::DataTable;
 use crate::presentation::components::filter::Filter;
 use crate::presentation::components::form::Form;
@@ -210,9 +209,9 @@ pub fn Agregar() -> Element {
     let mut rallita = use_signal(|| false);
     //let mut msg_error = use_signal(|| "".to_string());
 
-    let contacto_valido = contacto_valido(contacto.read().clone());
+    let contacto_valido = contacto_valido(&contacto.read());
 
-    let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
+    let fecha_valida = es_fecha_valida_form(&fecha_nac.read());
 
     let formulario_valido = (
         !nombre.read().is_empty(),
@@ -231,20 +230,16 @@ pub fn Agregar() -> Element {
                 }
         Form {nombre: nombre, fecha_nac: fecha_nac, rango: rango, representante: representante, contacto: contacto, rallita: rallita, campos_validos: formulario_valido, on_click: move |_| {
 
-            let alumno = Alumno {
-                id: 0,
+            let datos = DatosAlumno {
                 nombre: nombre.read().clone(),
                 fecha_de_nacimiento: fecha_nac.read().clone(),
                 numero_contacto: contacto.read().clone(),
-                rango: rango.read().clone(),
+                rango: *rango.read(),
                 representante: representante.read().clone(),
-                rallita:  if rango.read().clone() <= 0 {false} else {rallita.read().clone()}
-
-
+                rallita: *rallita.read(),
             };
 
-            let _ = estado.read().repositorio.save(&alumno);
-            estado.write().update();
+            let _ = estado.write().agregar_alumno(datos);
             nombre.set("".to_string());
             fecha_nac.set("".to_string());
             representante.set("".to_string());
@@ -338,8 +333,8 @@ pub fn Editar() -> Element {
                 }
                 1 => {
                     let id = *estado.read().seleccionados.iter().next().unwrap();
-                    let contacto_valido = contacto_valido(contacto.read().clone());
-                    let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
+                    let contacto_valido = contacto_valido(&contacto.read());
+                    let fecha_valida = es_fecha_valida_form(&fecha_nac.read());
                     let formulario_valido = (!nombre.read().is_empty(), fecha_valida, !representante.read().is_empty(), contacto_valido);
 
                     rsx! {
@@ -349,16 +344,15 @@ pub fn Editar() -> Element {
                                 representante: representante, contacto: contacto, rallita: rallita,
                                 campos_validos: formulario_valido,
                                 on_click: move |_| {
-                                    let mut alumno = estado.read().get_alumno_by_id(id);
-                                    alumno.nombre = nombre.read().clone();
-                                    alumno.fecha_de_nacimiento = fecha_nac.read().clone();
-                                    alumno.rango = rango.read().clone();
-                                    alumno.representante = representante.read().clone();
-                                    alumno.numero_contacto = contacto.read().clone();
-                                    alumno.rallita = rallita.read().clone();
-
-                                    let _ = estado.read().repositorio.update(&alumno);
-                                    estado.write().update();
+                                    let datos = DatosAlumno {
+                                        nombre: nombre.read().clone(),
+                                        fecha_de_nacimiento: fecha_nac.read().clone(),
+                                        numero_contacto: contacto.read().clone(),
+                                        rango: *rango.read(),
+                                        representante: representante.read().clone(),
+                                        rallita: *rallita.read(),
+                                    };
+                                    let _ = estado.write().actualizar_alumno(id, datos);
                                 },
                                 texto_boton: "Guardar"
                             }
@@ -377,9 +371,7 @@ pub fn Editar() -> Element {
                                     rallita: rallita,
                                     texto_boton: "Aplicar cambios",
                                     on_click: move |_| {
-                                        let ids_seleccionados = estado.read().seleccionados.clone();
-                                        let _ = estado.read().repositorio.update_rangos(ids_seleccionados, *rango.read(), *rallita.read() );
-                                        estado.write().update();
+                                        let _ = estado.write().promover_seleccionados(*rango.read(), *rallita.read());
                                     }
                                 }
                             }
@@ -431,10 +423,7 @@ pub fn Eliminar() -> Element {
                button {
                    class: "w-48 self-center py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
                    onclick: move |_| {
-                       let set_ids = estado.read().seleccionados.clone();
-                       let _ = estado.write().repositorio.delete(set_ids);
-                       estado.write().seleccionados.clear();
-                       estado.write().update();
+                       let _ = estado.write().eliminar_seleccionados();
                    },
                    "Eliminar"
                }

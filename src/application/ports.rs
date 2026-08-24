@@ -1,7 +1,7 @@
 //! Puertos (interfaces) que la capa de aplicación exige al mundo exterior.
 //! Las implementaciones concretas viven en la capa `infrastructure`.
 
-use crate::models::Alumno; // TEMPORAL: migrará a `domain::alumno` en la fase 3.
+use crate::domain::Alumno;
 use std::collections::HashSet;
 use std::fmt;
 

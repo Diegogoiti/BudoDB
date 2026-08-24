@@ -1,4 +1,4 @@
-use crate::models::{/*Alumno,*/ Cintas};
+use crate::domain::{/*Alumno,*/ Cintas};
 //use crate::my_app::MyApp;
 use dioxus::prelude::*;
 
@@ -73,7 +73,6 @@ pub fn Form(
                             style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
                             onchange: move |e| {
                                 if let Ok(val) = e.value().parse::<i32>() {
-                                    println!("valor_rango: {}", &val);
                                     rango.set(val);
                                 }
                             },
@@ -170,16 +169,11 @@ pub fn Form(
                                                             // Agregado 'pr-10' y la propiedad 'style' para WebKit
                                                             class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
                                                             style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
-                                                            onchange: move |e| {
-                                                                if let Ok(dan) = e.value().parse::<i32>() {
-                                                                    println!("Dan seleccionado: {}", dan);
-                                                                    let mut val = dan;
-                                                                    val = val * -1;
-                                                                    val = val +1;
-                                                                    println!("valor a guardar: {}",val);
-                                                                    rango.set(val);
-                                                                }
-                                                            },
+                                        onchange: move |e| {
+                                            if let Ok(dan) = e.value().parse::<i32>() {
+                                                rango.set(Cintas::rango_desde_dan(dan));
+                                            }
+                                        },
                                                             {(1..=10).map(|dan| rsx! {
                                                                 option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
                                                             })}
@@ -209,11 +203,9 @@ pub fn Form(
                 class: color_btn,
                 onclick: move |_| {
                     if form_valido {
-                        println!("Formulario válido, se puede agregar el alumno.");
                         on_click.call(());
                         intentado.set(false);
                     } else {
-                        println!("Formulario inválido, por favor corrige los errores.");
                         intentado.set(true);
                     }
                 },

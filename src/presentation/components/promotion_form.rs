@@ -1,4 +1,4 @@
-use crate::models::Cintas;
+use crate::domain::Cintas;
 use dioxus::prelude::*;
 
 #[component]
@@ -121,10 +121,7 @@ pub fn PromotionForm(
                                         style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
                                         onchange: move |e| {
                                             if let Ok(dan) = e.value().parse::<i32>() {
-                                                let mut val = dan;
-                                                val = val * -1;
-                                                val = val + 1;
-                                                rango.set(val);
+                                                rango.set(Cintas::rango_desde_dan(dan));
                                             }
                                         },
                                         {(1..=10).map(|dan| rsx! {

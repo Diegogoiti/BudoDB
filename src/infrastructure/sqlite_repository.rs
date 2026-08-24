@@ -2,7 +2,7 @@
 //! Es la única parte del código que conoce SQL y rusqlite (regla 1).
 
 use crate::application::ports::{AlumnoRepository, ErrorRepositorio, Logger};
-use crate::models::Alumno; // TEMPORAL: migrará a `domain::alumno` en la fase 3.
+use crate::domain::alumno::Alumno;
 use rusqlite::{params, params_from_iter, ToSql};
 use std::collections::HashSet;
 use std::path::Path;

@@ -3,6 +3,7 @@
 //! construyen aquí y se inyectan hacia las capas superiores.
 
 use crate::application::ports::{AlumnoRepository, Configuracion, Logger};
+use crate::application::service::ServicioAlumnos;
 use crate::infrastructure::console_logger::ConsoleLogger;
 use crate::infrastructure::env_config::ConfigEntorno;
 use crate::infrastructure::sqlite_repository::SqliteAlumnoRepository;
@@ -68,10 +69,11 @@ fn intentar_construir_estado() -> Result<MyApp, String> {
         SqliteAlumnoRepository::abrir(&ruta, logger.clone())
             .map_err(|e| format!("no se pudo abrir la base de datos '{ruta}': {e}"))?,
     );
-    let alumnos = repositorio
-        .fetch_all()
+    let servicio = Arc::new(ServicioAlumnos::nuevo(repositorio, logger.clone()));
+    let alumnos = servicio
+        .obtener_todos()
         .map_err(|e| format!("no se pudieron cargar los alumnos iniciales: {e}"))?;
     logger.info("Base de datos lista");
 
-    Ok(MyApp::new(alumnos, repositorio))
+    Ok(MyApp::new(alumnos, servicio, logger))
 }

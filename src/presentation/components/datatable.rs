@@ -1,6 +1,7 @@
-use crate::models::Alumno;
+use crate::domain::Alumno;
 use crate::presentation::app::Route;
 use crate::presentation::my_app;
+use chrono::Local;
 use dioxus::prelude::*;
 
 ///componente que recibe un contexto con una clase myapp y clona el vertor alumnos
@@ -13,6 +14,7 @@ pub fn DataTable(
 ) -> Element {
     let alumnos = alumnos_lista.read().clone();
     let nav = use_navigator();
+    let hoy = Local::now().date_naive();
     rsx! {
 
         div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl ",
@@ -75,7 +77,7 @@ pub fn DataTable(
                                     "{alumno.rango()}"
                                 }
                             }
-                            td { class: "px-4 py-3 whitespace-nowrap", "{alumno.edad()}" }
+                            td { class: "px-4 py-3 whitespace-nowrap", "{alumno.edad(hoy)}" }
                             td { class: "px-4 py-3", "{alumno.fecha_de_nacimiento}" }
                             td { class: "px-4 py-3 whitespace-nowrap", "{alumno.representante}" }
                             td { class: "px-4 py-3 text-blue-400 font-mono whitespace-nowrap",

@@ -12,7 +12,3 @@ pub mod composition_root;
 pub mod domain;
 pub mod infrastructure;
 pub mod presentation;
-
-/// MÓDULO TEMPORAL: contiene la entidad `Alumno`, `Cintas` y `Database`.
-/// Se dividirá entre `domain` e `infrastructure` durante las fases 2 y 3.
-pub mod models;

@@ -1,4 +1,4 @@
-use crate::models::Cintas;
+use crate::domain::Cintas;
 use crate::presentation::my_app::Columnas;
 use dioxus::prelude::*;
 
