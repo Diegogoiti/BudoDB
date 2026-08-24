@@ -12,6 +12,12 @@ pub const FORMATO_FECHA: &str = "%Y-%m-%d";
 ///modelo que maneja los datos delos alumnos para tratarlos como instancias independientes
 /// de manera mas organizada y clara, contiene metodos como cinta, rango_str o edad que son setters,
 /// calculan los valores a partir de las variables  y los retornan
+///
+/// El alumno ya NO guarda el nombre del representante: lo referencia por su
+/// ID (`representante_id`). Los datos de contacto viven en la entidad
+/// `Representante`; un mismo representante puede tener varios alumnos.
+/// El ID 0 significa "sin representante asignado" (solo ocurre en registros
+/// históricos migrados).
 #[derive(PartialEq, Clone, Debug)]
 pub struct Alumno {
     pub id: usize,
@@ -19,8 +25,8 @@ pub struct Alumno {
     pub rango: i32,
 
     pub fecha_de_nacimiento: String,
-    pub representante: String,
-    pub numero_contacto: String,
+    /// FK lógica hacia `Representante.id`. 0 = sin asignar.
+    pub representante_id: usize,
     pub rallita: bool,
 }
 
@@ -86,20 +92,20 @@ impl Alumno {
 impl fmt::Display for Alumno {
     // Única excepción de reloj en el dominio: este formato tipo ficha no se usa
     // desde la interfaz hoy; se conserva para paridad total de comportamiento.
+    // El nombre del representante no vive aquí: solo su ID (FK).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             r#"Ficha Técnica del Alumno
 ==========================
-ID:             {id}
-Nombre:         {nombre}
-Fecha de Nac.:  {fecha_nac}
-Edad:           {edad} años
-Grado (Kyu):    {rango}
-Cinta/Nivel:    {cinta}
-Representante:  {representante}
-Contacto:       {contacto}
-Con Rallita:    {rallita}
+ID:                 {id}
+Nombre:             {nombre}
+Fecha de Nac.:      {fecha_nac}
+Edad:               {edad} años
+Grado (Kyu):        {rango}
+Cinta/Nivel:        {cinta}
+Representante ID:   {representante_id}
+Con Rallita:        {rallita}
 ========================="#,
             id = self.id,
             nombre = self.nombre,
@@ -107,8 +113,7 @@ Con Rallita:    {rallita}
             edad = self.edad(Local::now().date_naive()),
             rango = self.rango,
             cinta = self.cinta(),
-            representante = self.representante,
-            contacto = self.numero_contacto,
+            representante_id = self.representante_id,
             rallita = if self.rallita { "Sí" } else { "No" }
         )
     }
@@ -125,8 +130,7 @@ mod pruebas {
             nombre: "Test".to_string(),
             rango,
             fecha_de_nacimiento: "2010-01-15".to_string(),
-            representante: "Rep".to_string(),
-            numero_contacto: "0412-0000000".to_string(),
+            representante_id: 3,
             rallita,
         }
     }

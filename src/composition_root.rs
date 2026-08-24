@@ -2,11 +2,13 @@
 //! arranque de la aplicación (regla 4). Todos los servicios/repositorios se
 //! construyen aquí y se inyectan hacia las capas superiores.
 
-use crate::application::ports::{AlumnoRepository, Configuracion, Logger};
+use crate::application::ports::{AlumnoRepository, Configuracion, Logger, PagoRepository, RepresentanteRepository};
 use crate::application::service::ServicioAlumnos;
+use crate::application::service_pagos::ServicioPagos;
+use crate::application::service_representantes::ServicioRepresentantes;
 use crate::infrastructure::console_logger::ConsoleLogger;
 use crate::infrastructure::env_config::ConfigEntorno;
-use crate::infrastructure::sqlite_repository::SqliteAlumnoRepository;
+use crate::infrastructure::sqlite_repository::SqliteRepositorio;
 use crate::presentation::app::{App, CSS};
 use crate::presentation::my_app::MyApp;
 use dioxus::desktop::{Config, LogicalSize, WindowBuilder};
@@ -58,22 +60,36 @@ pub fn construir_estado_aplicacion() -> MyApp {
 }
 
 fn intentar_construir_estado() -> Result<MyApp, String> {
-    // Orden de construcción del grafo: logger -> configuración -> repositorio -> estado.
+    // Orden de construcción del grafo: logger -> configuración -> repositorio
+    // (uno solo, tres puertos) -> servicios -> estado.
     let logger: Arc<dyn Logger> = Arc::new(ConsoleLogger);
     let config = ConfigEntorno;
     let ruta = config.ruta_base_de_datos();
 
     logger.info("Iniciando BudoDB...");
 
-    let repositorio: Arc<dyn AlumnoRepository> = Arc::new(
-        SqliteAlumnoRepository::abrir(&ruta, logger.clone())
+    // Una única instancia de repositorio coercida a sus tres puertos: las
+    // entidades comparten conexión porque se relacionan por claves y así las
+    // migraciones corren en un solo lugar.
+    let sqlite = Arc::new(
+        SqliteRepositorio::abrir(&ruta, logger.clone())
             .map_err(|e| format!("no se pudo abrir la base de datos '{ruta}': {e}"))?,
     );
-    let servicio = Arc::new(ServicioAlumnos::nuevo(repositorio, logger.clone()));
-    let alumnos = servicio
-        .obtener_todos()
-        .map_err(|e| format!("no se pudieron cargar los alumnos iniciales: {e}"))?;
+    let repo_alumnos: Arc<dyn AlumnoRepository> = sqlite.clone();
+    let repo_representantes: Arc<dyn RepresentanteRepository> = sqlite.clone();
+    let repo_pagos: Arc<dyn PagoRepository> = sqlite;
+
+    let servicio_alumnos = Arc::new(ServicioAlumnos::nuevo(repo_alumnos, logger.clone()));
+    let servicio_representantes =
+        Arc::new(ServicioRepresentantes::nuevo(repo_representantes, logger.clone()));
+    let servicio_pagos = Arc::new(ServicioPagos::nuevo(repo_pagos, logger.clone()));
+
     logger.info("Base de datos lista");
 
-    Ok(MyApp::new(alumnos, servicio, logger))
+    Ok(MyApp::new(
+        servicio_alumnos,
+        servicio_representantes,
+        servicio_pagos,
+        logger,
+    ))
 }

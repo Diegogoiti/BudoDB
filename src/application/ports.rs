@@ -1,7 +1,7 @@
 //! Puertos (interfaces) que la capa de aplicación exige al mundo exterior.
 //! Las implementaciones concretas viven en la capa `infrastructure`.
 
-use crate::domain::Alumno;
+use crate::domain::{Alumno, Pago, Representante};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -50,6 +50,26 @@ pub trait AlumnoRepository: Send + Sync {
         rango: i32,
         rallita: bool,
     ) -> Result<(), ErrorRepositorio>;
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+}
+
+/// Puerto de persistencia de representantes. Mismo contrato de borrado
+/// lógico que los alumnos.
+pub trait RepresentanteRepository: Send + Sync {
+    fn save(&self, representante: &Representante) -> Result<(), ErrorRepositorio>;
+    fn fetch_all(&self) -> Result<Vec<Representante>, ErrorRepositorio>;
+    fn update(&self, representante: &Representante) -> Result<(), ErrorRepositorio>;
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+}
+
+/// Puerto de persistencia de pagos de mensualidad. El borrado también es
+/// lógico: un pago anulado debe quedar en el historial.
+pub trait PagoRepository: Send + Sync {
+    fn save(&self, pago: &Pago) -> Result<(), ErrorRepositorio>;
+    /// Pagos registrados para un periodo "YYYY-MM" (no anulados).
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Pago>, ErrorRepositorio>;
+    /// Todos los pagos activos, del periodo que sea (historial).
+    fn fetch_all(&self) -> Result<Vec<Pago>, ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 

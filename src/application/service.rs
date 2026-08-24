@@ -2,11 +2,12 @@
 /// hacia la persistencia (regla 3). Mapean explícitamente DTO de entrada ->
 /// entidad de dominio y aplican validación + reglas antes de tocar puertos.
 
-use super::dto::DatosAlumno;
+use super::dto::{AlumnoVista, DatosAlumno};
 use super::error::ErrorAplicacion;
 use super::ports::{AlumnoRepository, Logger};
 use super::validation::validar_datos_alumno;
 use crate::domain::alumno::Alumno;
+use crate::domain::Representante;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -37,8 +38,7 @@ impl ServicioAlumnos {
             nombre: datos.nombre,
             fecha_de_nacimiento: datos.fecha_de_nacimiento,
             rango: datos.rango,
-            representante: datos.representante,
-            numero_contacto: datos.numero_contacto,
+            representante_id: datos.representante_id,
             // Regla de dominio: un Dan nunca lleva rallita.
             rallita: Alumno::aplica_rallita(datos.rango, datos.rallita),
         };
@@ -55,8 +55,7 @@ impl ServicioAlumnos {
             nombre: datos.nombre,
             fecha_de_nacimiento: datos.fecha_de_nacimiento,
             rango: datos.rango,
-            representante: datos.representante,
-            numero_contacto: datos.numero_contacto,
+            representante_id: datos.representante_id,
             // NOTA: a diferencia de `agregar`, aquí NO se normaliza la rallita
             // para preservar el comportamiento histórico de la vista Editar.
             rallita: datos.rallita,
@@ -91,6 +90,31 @@ impl ServicioAlumnos {
         self.logger.debug("Alumnos marcados como eliminados");
         Ok(())
     }
+}
+
+/// Proyección de lectura (regla 5): junta alumnos con los datos de su
+/// representante para pintar tablas. Es una función PURA: la UI obtiene
+/// ambas listas por separado y aquí se resuelve la relación por ID.
+/// Los alumnos sin representante asignado (ID 0, solo históricos) muestran
+/// texto vacío.
+pub fn armar_vistas_alumnos(alumnos: &[Alumno], representantes: &[Representante]) -> Vec<AlumnoVista> {
+    alumnos
+        .iter()
+        .map(|alumno| {
+            let representante = representantes
+                .iter()
+                .find(|r| r.id == alumno.representante_id);
+            AlumnoVista {
+                alumno: alumno.clone(),
+                nombre_representante: representante
+                    .map(|r| r.nombre.clone())
+                    .unwrap_or_default(),
+                telefono_representante: representante
+                    .map(|r| r.numero_contacto.clone())
+                    .unwrap_or_default(),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -186,8 +210,7 @@ mod pruebas {
             nombre: "Juan Pérez".to_string(),
             fecha_de_nacimiento: "2010-01-15".to_string(),
             rango: 6,
-            representante: "Pedro Pérez".to_string(),
-            numero_contacto: "0412-0000000".to_string(),
+            representante_id: 3,
             rallita: false,
         }
     }
@@ -198,8 +221,7 @@ mod pruebas {
             nombre: "Viejo Nombre".to_string(),
             rango: 8,
             fecha_de_nacimiento: "2000-01-01".to_string(),
-            representante: "R".to_string(),
-            numero_contacto: "0412-0000000".to_string(),
+            representante_id: 3,
             rallita: false,
         }
     }

@@ -21,6 +21,8 @@ pub enum Route {
     Editar {},
     #[route("/eliminar")]
     Eliminar {},
+    #[route("/administrador")]
+    Administrador {},
 }
 
 /// Componente raíz. El estado inicial se construye a través del

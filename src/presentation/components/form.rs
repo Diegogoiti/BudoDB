@@ -1,17 +1,19 @@
-use crate::domain::{/*Alumno,*/ Cintas};
-//use crate::my_app::MyApp;
+use crate::domain::{Cintas, Representante};
 use dioxus::prelude::*;
 
+/// Formulario de alumno compartido por las vistas Agregar y Editar.
+/// El contacto ya no se captura aquí: pertenece al REPRESENTANTE, que se
+/// elige del catálogo administrado en el panel de Administrador.
 #[component]
 pub fn Form(
     nombre: Signal<String>,
     fecha_nac: Signal<String>,
     rango: Signal<i32>,
-    representante: Signal<String>,
-    contacto: Signal<String>,
+    representantes: Vec<Representante>,
+    representante_id: Signal<usize>,
     rallita: Signal<bool>,
     texto_boton: &'static str,
-    campos_validos: (bool, bool, bool, bool),
+    campos_validos: (bool, bool, bool),
     on_click: EventHandler<()>,
 ) -> Element {
     fn get_border_class(es_valido: bool, intentando: bool) -> &'static str {
@@ -23,8 +25,8 @@ pub fn Form(
     }
 
     let mut intentado = use_signal(|| false);
-    let (nombre_valido, fecha_valida, representante_valido, contacto_valido) = campos_validos;
-    let form_valido = nombre_valido && fecha_valida && representante_valido && contacto_valido;
+    let (nombre_valido, fecha_valida, rep_valido) = campos_validos;
+    let form_valido = nombre_valido && fecha_valida && rep_valido;
 
     let color_btn = if form_valido {
         "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-950 transition-all active:scale-[0.98] cursor-pointer"
@@ -97,7 +99,7 @@ pub fn Form(
                             })}
                         }
 
-                        // CORRECCIÓN AQUÍ: Forzamos la posición derecha con inline style para WebKit
+                        // Flecha posicionada con inline style para WebKit
                         div {
                             class: "pointer-events-none absolute text-gray-400 flex items-center",
                             style: "right: 12px; top: 50%; transform: translateY(-50%);",
@@ -113,40 +115,56 @@ pub fn Form(
                     }
                 }}
 
-            // Campo: Representante
+            // Campo: Representante (selector del catálogo, relación por ID)
             div { class: "flex flex-col space-y-1",
                 label { class: "text-sm font-semibold text-gray-400", "Representante" }
-                input {
-                    r#type: "text",
-                    class: "p-2 rounded-lg outline-none transition-colors bg-gray-900 text-gray-100 {get_border_class(representante_valido, intentado.read().clone())}",
-                    placeholder: "Nombre del padre o tutor",
-                    value: "{representante}",
-                    oninput: move |e| representante.set(e.value())
-                }
-            }
-
-            // Campo: Contacto y Rallita
-            div { class: "grid grid-cols-2 gap-4 items-end",
-                div { class: "flex flex-col space-y-1",
-                    label { class: "text-sm font-semibold text-gray-400", "Teléfono de Contacto" }
-                    input {
-                        r#type: "tel",
-                        maxlength: "12",
-                        value: "{contacto}",
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 outline-none transition-colors {get_border_class(contacto_valido, intentado.read().clone())}",
-                        placeholder: "0412-0000000",
-                        oninput: move |e| {
-                            let mut val = e.value();
-                            val.retain(|c| c.is_ascii_digit());
-                            if val.len() > 4 {
-                                val.insert(4, '-');
+                div { class: "relative w-full flex items-center",
+                    select {
+                        class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 {get_border_class(rep_valido, intentado.read().clone())} outline-none transition-colors cursor-pointer",
+                        style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
+                        value: "{representante_id}",
+                        onchange: move |e| {
+                            if let Ok(id) = e.value().parse::<usize>() {
+                                representante_id.set(id);
                             }
-                            val.truncate(12);
-                            contacto.set(val);
+                        },
+                        option {
+                            class: "bg-gray-900",
+                            value: "0",
+                            selected: *representante_id.read() == 0,
+                            disabled: true,
+                            "-- Seleccione un representante --"
+                        }
+                        {representantes.iter().map(|rep| {
+                            let id = rep.id;
+                            rsx! {
+                                option {
+                                    class: "bg-gray-900",
+                                    value: "{id}",
+                                    selected: *representante_id.read() == id,
+                                    "{rep.nombre}"
+                                }
+                            }
+                        })}
+                    }
+
+                    div {
+                        class: "pointer-events-none absolute text-gray-400 flex items-center",
+                        style: "right: 12px; top: 50%; transform: translateY(-50%);",
+                        svg {
+                            class: "w-4 h-4",
+                            fill: "none",
+                            stroke: "currentColor",
+                            view_box: "0 0 24 24",
+                            stroke_width: "2",
+                            path { stroke_linecap: "round", stroke_linejoin: "round", d: "M19 9l-7 7-7-7" }
                         }
                     }
                 }
+            }
 
+            // Campo: Rallita / Danes
+            div { class: "grid grid-cols-2 gap-4 items-end",
                 {
                     if rango.read().clone() > 0 {
                                             rsx! {
@@ -163,10 +181,8 @@ pub fn Form(
                                         } else {
                                             rsx! {
                                                 div { class: "flex flex-col space-y-1 w-full",
-                                                    // CORRECCIÓN AQUÍ: Contenedor idéntico con posición relativa
                                                     div { class: "relative w-full flex items-center",
                                                         select {
-                                                            // Agregado 'pr-10' y la propiedad 'style' para WebKit
                                                             class: "w-full p-2 pr-10 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none transition-colors cursor-pointer h-[42px] text-sm font-medium",
                                                             style: "-webkit-appearance: none; appearance: none; background-color: #111827;",
                                         onchange: move |e| {
@@ -175,7 +191,7 @@ pub fn Form(
                                             }
                                         },
                                                             {(1..=10).map(|dan| rsx! {
-                                                                option { class: "bg-gray-900", value: "{dan}", "{dan}° Dan" }
+                                                                option { class: "bg-gray-900", value: "{dan}", selected: *rango.read() == Cintas::rango_desde_dan(dan), "{dan}° Dan" }
                                                             })}
                                                         }
 

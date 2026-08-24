@@ -3,6 +3,10 @@
 
 pub mod alumno;
 pub mod cintas;
+pub mod pago;
+pub mod representante;
 
 pub use alumno::Alumno;
 pub use cintas::Cintas;
+pub use pago::Pago;
+pub use representante::Representante;

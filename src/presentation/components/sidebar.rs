@@ -33,6 +33,12 @@ pub fn Sidebar() -> Element {
                         icon: "🗑️",
                         label: "Eliminar",
                     }
+                    hr { class: "my-6 border-gray-800" }
+                    SidebarItem {
+                        to: Route::Administrador {},
+                        icon: "🛡️",
+                        label: "Administrador",
+                    }
                 }
                 div { class: "p-4 bg-gray-950 text-center border-t border-gray-800",
                     p { class: "text-[10px] text-gray-500 tracking-widest",

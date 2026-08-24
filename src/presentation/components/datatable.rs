@@ -1,4 +1,4 @@
-use crate::domain::Alumno;
+use crate::application::dto::AlumnoVista;
 use crate::presentation::app::Route;
 use crate::presentation::my_app;
 use chrono::Local;
@@ -22,15 +22,18 @@ const SOBRE_MUESTRA: usize = 20;
 /// Ventana mínima de filas renderizadas (cualquier alto de panel queda cubierto).
 const FILAS_VENTANA: usize = 80;
 
-///componente que recibe un contexto con una clase myapp y clona el vertor alumnos
+///componente que recibe un contexto con una clase myapp y clona el vector de vistas
 /// para dibujar la tabla de los datos en la ventana
 ///
 /// La tabla está VIRTUALIZADA: sin importar cuántos alumnos existan, solo se
 /// renderizan las filas cercanas a la posición de scroll (+sobremuestra). Dos
 /// filas-relleno mantienen la altura total del scroll y la cabecera sticky.
+///
+/// Consume PROYECCIONES (`AlumnoVista`): el nombre y teléfono del representante
+/// ya vienen resueltos desde la capa de aplicación.
 #[component]
 pub fn DataTable(
-    alumnos_lista: Signal<Vec<Alumno>>,
+    alumnos_lista: Signal<Vec<AlumnoVista>>,
     estado: Signal<my_app::MyApp>,
     aplicar_color_seleccion: bool,
 ) -> Element {
@@ -52,14 +55,14 @@ pub fn DataTable(
     let alto_relleno_superior = inicio as f64 * ALTO_FILA_PX;
     let alto_relleno_inferior = (total - fin) as f64 * ALTO_FILA_PX;
 
-    // Ventana visible: pares (índice real en la lista completa, alumno).
+    // Ventana visible: pares (índice real en la lista completa, vista).
     // El índice real mantiene el rayado cebra estable aunque solo se
     // renderice una porción de la lista. Se clona porque el rsx captura
     // los valores en closures `move`.
-    let ventana: Vec<(usize, Alumno)> = alumnos[inicio..fin]
+    let ventana: Vec<(usize, AlumnoVista)> = alumnos[inicio..fin]
         .iter()
         .enumerate()
-        .map(|(desplazamiento, alumno)| (inicio + desplazamiento, alumno.clone()))
+        .map(|(desplazamiento, vista)| (inicio + desplazamiento, vista.clone()))
         .collect();
 
     rsx! {
@@ -103,34 +106,32 @@ pub fn DataTable(
                         }
                     }
 
-                    for (i, alumno) in ventana {
+                    for (i, vista) in ventana {
                         // key por ID: al deslizar la ventana, dioxus mueve los
                         // nodos existentes en vez de reciclarlos para otra
                         // fila (eso cambiaba el fondo de cada tr en pantalla).
                         tr {
-                            key: "{alumno.id}",
+                            key: "{vista.alumno.id}",
                             style: "height:{ALTO_FILA_PX}px",
                             // Sin transition-colors: al reciclarse nodos durante
                             // el scroll, la transición animaba el cambio de gris
-                            // y hacía "parpadear" el rayado cebra.
+                            // y hacía "parpadear" el rayado cebra. Rayado con
+                            // clases que EXISTEN en el CSS compilado.
                             class: {
-                                let es_seleccionado = estado.read().seleccionados.contains(&alumno.id);
-                                // Rayado cebra con clases que EXISTEN en el
-                                // CSS compilado (gray-850 no existe).
+                                let es_seleccionado = estado.read().seleccionados.contains(&vista.alumno.id);
                                 let base = if aplicar_color_seleccion && es_seleccionado {
                                     "bg-blue-500 hover:bg-blue-700"
                                 } else {
                                     if i % 2 == 0 { "bg-gray-900 hover:bg-gray-700" } else { "bg-gray-800 hover:bg-gray-700" }
                                 };
-                                //let hover = "bg-gray-750";
                                 base
                                 },
                             onclick: move |_| {
-                                estado.write().toggle_seleccion(alumno.id);
+                                estado.write().toggle_seleccion(vista.alumno.id);
                             },
                             ondoubleclick: move |_| {
-                            if !estado.read().seleccionados.contains(&alumno.id) {
-                                estado.write().toggle_seleccion(alumno.id);
+                            if !estado.read().seleccionados.contains(&vista.alumno.id) {
+                                estado.write().toggle_seleccion(vista.alumno.id);
                             }
                             nav.push(Route::Editar {});
                             },
@@ -138,27 +139,27 @@ pub fn DataTable(
                                 input {
                                     r#type: "checkbox",
                                     class: "w-4 h-4 rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-blue-500",
-                                    checked: estado.read().seleccionados.contains(&alumno.id),
+                                    checked: estado.read().seleccionados.contains(&vista.alumno.id),
 
                                 }
                             }
-                            td { class: "px-4 py-3 font-mono text-gray-500", "#{alumno.id}" }
-                            td { class: "px-4 py-3 font-bold text-white whitespace-nowrap", "{alumno.nombre}" }
+                            td { class: "px-4 py-3 font-mono text-gray-500", "#{vista.alumno.id}" }
+                            td { class: "px-4 py-3 font-bold text-white whitespace-nowrap", "{vista.alumno.nombre}" }
                             td { class: "px-4 py-3",
                                 span { class: "inline-flex items-center justify-center min-w-36 px-3 py-1.5 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300 whitespace-nowrap",
-                                    "{alumno.cinta()}"
+                                    "{vista.alumno.cinta()}"
                                 }
                             }
                                                         td { class: "px-4 py-3",
                                 span { class: "inline-flex items-center justify-center min-w-20 px-2 py-1.5 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300 whitespace-nowrap",
-                                    "{alumno.rango()}"
+                                    "{vista.alumno.rango()}"
                                 }
                             }
-                            td { class: "px-4 py-3 whitespace-nowrap", "{alumno.edad(hoy)}" }
-                            td { class: "px-4 py-3", "{alumno.fecha_de_nacimiento}" }
-                            td { class: "px-4 py-3 whitespace-nowrap", "{alumno.representante}" }
+                            td { class: "px-4 py-3 whitespace-nowrap", "{vista.alumno.edad(hoy)}" }
+                            td { class: "px-4 py-3", "{vista.alumno.fecha_de_nacimiento}" }
+                            td { class: "px-4 py-3 whitespace-nowrap", "{vista.nombre_representante}" }
                             td { class: "px-4 py-3 text-blue-400 font-mono whitespace-nowrap",
-                                "{alumno.numero_contacto}"
+                                "{vista.telefono_representante}"
                             }
                         }
                     }
