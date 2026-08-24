@@ -6,7 +6,15 @@ use dioxus::prelude::*;
 
 /// Virtualización: altura fija de cada fila en píxeles. Cada `tr` fuerza esta
 /// altura con estilo inline, así el cálculo de posiciones es exacto.
-const ALTO_FILA_PX: f64 = 46.0;
+///
+/// Debe ser MAYOR o igual que la altura natural del contenido de la fila
+/// (~49px con los badges de Cinta/Rango); si fuera menor, las filas crecen
+/// solas y el cálculo de posiciones pierde precisión.
+const ALTO_FILA_PX: f64 = 50.0;
+
+/// Solo reaccionamos al scroll cuando cruzó medio renglón: evita re-renderizar
+/// por cada píxel y rompe bucles de auto-scroll entre eventos y re-renders.
+const PASO_MINIMO_PX: f64 = ALTO_FILA_PX / 2.0;
 
 /// Filas renderizadas siempre presentes alrededor del viewport.
 const SOBRE_MUESTRA: usize = 20;
@@ -58,7 +66,16 @@ pub fn DataTable(
 
         div {
             class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl ",
-            onscroll: move |e| scroll_y.set(e.data().scroll_top()),
+            // Desactiva el scroll anchoring del navegador: cuando los rellenos
+            // cambian de tamaño, Chromium no debe "compensar" moviendo el
+            // scroll por su cuenta (era la causa del scroll desbocado).
+            style: "overflow-anchor:none",
+            onscroll: move |e| {
+                let arriba = e.data().scroll_top();
+                if (arriba - *scroll_y.read()).abs() >= PASO_MINIMO_PX {
+                    scroll_y.set(arriba);
+                }
+            },
             table { class: "w-full border-collapse text-left text-xs md:text-sm table-auto",
                 thead {
                     // sticky y top-0 mantienen la fila visible al bajar
