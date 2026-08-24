@@ -113,3 +113,86 @@ Con Rallita:    {rallita}
         )
     }
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use chrono::NaiveDate;
+
+    fn alumno(rango: i32, rallita: bool) -> Alumno {
+        Alumno {
+            id: 1,
+            nombre: "Test".to_string(),
+            rango,
+            fecha_de_nacimiento: "2010-01-15".to_string(),
+            representante: "Rep".to_string(),
+            numero_contacto: "0412-0000000".to_string(),
+            rallita,
+        }
+    }
+
+    #[test]
+    fn cinta_sin_rallita_muestra_solo_su_color() {
+        assert_eq!(alumno(6, false).cinta(), "Verde");
+        assert_eq!(alumno(10, false).cinta(), "Blanca");
+        assert_eq!(alumno(0, false).cinta(), "Negra");
+    }
+
+    #[test]
+    fn cinta_con_rallita_agrega_la_cinta_anterior() {
+        // Verde (6) con rallita muestra la anterior: Azul.
+        assert_eq!(alumno(6, true).cinta(), "Verde ralla Azul");
+        // Blanca (10) no tiene anterior: saturating_sub mantiene 10.
+        assert_eq!(alumno(10, true).cinta(), "Blanca ralla Celeste");
+    }
+
+    #[test]
+    fn edad_respeta_si_el_cumpleanos_ya_paso() {
+        let hoy = NaiveDate::from_ymd_opt(2026, 8, 24).expect("fecha fija de prueba");
+        assert_eq!(alumno(6, false).edad(hoy), "16 años"); // cumplió el 15/01
+    }
+
+    #[test]
+    fn edad_no_cuenta_el_cumpleanos_del_dia_siguiente() {
+        let hoy = NaiveDate::from_ymd_opt(2026, 8, 24).expect("fecha fija de prueba");
+        let casi = Alumno {
+            fecha_de_nacimiento: "2010-08-25".to_string(),
+            ..alumno(6, false)
+        };
+        assert_eq!(casi.edad(hoy), "15 años");
+    }
+
+    #[test]
+    fn el_cumpleanos_de_hoy_cuenta_como_cumplido() {
+        let hoy = NaiveDate::from_ymd_opt(2026, 8, 24).expect("fecha fija de prueba");
+        let justo = Alumno {
+            fecha_de_nacimiento: "2010-08-24".to_string(),
+            ..alumno(6, false)
+        };
+        assert_eq!(justo.edad(hoy), "16 años");
+    }
+
+    #[test]
+    fn fecha_invalida_muestra_interrogantes() {
+        let mut a = alumno(6, false);
+        a.fecha_de_nacimiento = "15/01/2010".to_string();
+        let hoy = NaiveDate::from_ymd_opt(2026, 8, 24).expect("fecha fija de prueba");
+        assert_eq!(a.edad(hoy), "?? años");
+    }
+
+    #[test]
+    fn rango_formatea_kyu_dan_y_rallita() {
+        assert_eq!(alumno(10, false).rango(), "10 kyu");
+        assert_eq!(alumno(3, true).rango(), "3 kyu B");
+        assert_eq!(alumno(0, false).rango(), "1 Dan");
+        assert_eq!(alumno(-9, false).rango(), "10 Dan");
+    }
+
+    #[test]
+    fn los_dan_nunca_llevan_rallita() {
+        assert!(!Alumno::aplica_rallita(0, true));
+        assert!(!Alumno::aplica_rallita(-5, true));
+        assert!(Alumno::aplica_rallita(6, true));
+        assert!(!Alumno::aplica_rallita(6, false));
+    }
+}

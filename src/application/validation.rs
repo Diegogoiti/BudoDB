@@ -58,3 +58,74 @@ pub fn validar_datos_alumno(datos: &DatosAlumno) -> Result<(), ErrorAplicacion> 
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn fechas_validas_solo_en_formato_iso() {
+        assert!(es_fecha_valida("2026-08-24"));
+        assert!(!es_fecha_valida("24-08-2026"));
+        assert!(!es_fecha_valida("2026/08/24"));
+        assert!(!es_fecha_valida(""));
+    }
+
+    #[test]
+    fn formulario_exige_fecha_no_vacia() {
+        assert!(es_fecha_valida_form("2026-08-24"));
+        assert!(!es_fecha_valida_form(""));
+    }
+
+    #[test]
+    fn contacto_respeta_el_largo_minimo_historico() {
+        assert!(!contacto_valido(""));
+        assert!(!contacto_valido("0412-00000")); // 11 caracteres
+        assert!(contacto_valido("0412-0000000")); // 12 caracteres
+    }
+
+    #[test]
+    fn nombre_y_representante_son_obligatorios() {
+        assert!(!nombre_valido(""));
+        assert!(nombre_valido("Juan"));
+        assert!(!representante_valido(""));
+        assert!(representante_valido("Pedro"));
+    }
+
+    #[test]
+    fn validacion_completa_acepta_datos_buenos() {
+        let datos = DatosAlumno {
+            nombre: "Juan".to_string(),
+            fecha_de_nacimiento: "2010-01-15".to_string(),
+            rango: 6,
+            representante: "Pedro".to_string(),
+            numero_contacto: "0412-0000000".to_string(),
+            rallita: false,
+        };
+        assert!(validar_datos_alumno(&datos).is_ok());
+    }
+
+    #[test]
+    fn validacion_completa_reporta_error_de_formato() {
+        let mut datos = DatosAlumno {
+            nombre: "Juan".to_string(),
+            fecha_de_nacimiento: "31/12/2010".to_string(),
+            rango: 6,
+            representante: "Pedro".to_string(),
+            numero_contacto: "0412-0000000".to_string(),
+            rallita: false,
+        };
+
+        match validar_datos_alumno(&datos) {
+            Err(ErrorAplicacion::Validacion(_)) => {}
+            otro => panic!("se esperaba error de validación, obtuve {otro:?}"),
+        }
+
+        datos.fecha_de_nacimiento = "2010-12-31".to_string();
+        datos.numero_contacto = "0412-00".to_string();
+        match validar_datos_alumno(&datos) {
+            Err(ErrorAplicacion::Validacion(_)) => {}
+            otro => panic!("se esperaba error de validación, obtuve {otro:?}"),
+        }
+    }
+}

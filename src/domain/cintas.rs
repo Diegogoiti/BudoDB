@@ -101,3 +101,65 @@ impl Cintas {
         -dan + 1
     }
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn from_rango_mapea_todo_el_arco_kyu() {
+        assert_eq!(Cintas::from_rango(10), Cintas::Blanca);
+        assert_eq!(Cintas::from_rango(9), Cintas::Celeste);
+        assert_eq!(Cintas::from_rango(8), Cintas::Amarilla);
+        assert_eq!(Cintas::from_rango(7), Cintas::Naranja);
+        assert_eq!(Cintas::from_rango(6), Cintas::Verde);
+        assert_eq!(Cintas::from_rango(5), Cintas::Azul1);
+        assert_eq!(Cintas::from_rango(4), Cintas::Azul2);
+        assert_eq!(Cintas::from_rango(3), Cintas::Marron1);
+        assert_eq!(Cintas::from_rango(2), Cintas::Marron2);
+        assert_eq!(Cintas::from_rango(1), Cintas::Marron3);
+    }
+
+    #[test]
+    fn grados_dan_y_desconocidos_son_negra() {
+        assert_eq!(Cintas::from_rango(0), Cintas::Negra);
+        assert_eq!(Cintas::from_rango(-7), Cintas::Negra);
+        assert_eq!(Cintas::from_rango(99), Cintas::Negra);
+    }
+
+    #[test]
+    fn label_es_lo_que_ve_el_usuario() {
+        assert_eq!(Cintas::Blanca.label(), "Blanca");
+        assert_eq!(Cintas::Azul2.label(), "Azul 2");
+        assert_eq!(Cintas::Marron3.label(), "Marrón 3");
+        assert_eq!(Cintas::Negra.label(), "Negra");
+    }
+
+    #[test]
+    fn nombre_agrupa_azules_y_marrones() {
+        assert_eq!(Cintas::Azul1.nombre(), "Azul");
+        assert_eq!(Cintas::Azul2.nombre(), "Azul");
+        assert_eq!(Cintas::Marron1.nombre(), "Marrón");
+        assert_eq!(Cintas::Marron3.nombre(), "Marrón");
+        assert_eq!(Cintas::Verde.nombre(), "Verde");
+    }
+
+    #[test]
+    fn valor_y_from_rango_son_inversos_salvo_negra() {
+        for cinta in Cintas::all_variants() {
+            if *cinta == Cintas::Negra {
+                continue; // Negra comparte el catch-all con los Dan.
+            }
+            assert_eq!(Cintas::from_rango(cinta.valor() as i32), *cinta);
+        }
+        assert_eq!(Cintas::all_variants().len(), 11);
+    }
+
+    #[test]
+    fn conversion_dan_usa_la_formula_historica() {
+        // Dan 1 -> rango 0 (Negra), Dan 10 -> rango -9.
+        assert_eq!(Cintas::rango_desde_dan(1), 0);
+        assert_eq!(Cintas::rango_desde_dan(10), -9);
+        assert_eq!(Cintas::from_rango(Cintas::rango_desde_dan(1)), Cintas::Negra);
+    }
+}

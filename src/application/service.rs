@@ -91,3 +91,201 @@ impl ServicioAlumnos {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use crate::application::ports::ErrorRepositorio;
+    use std::sync::Mutex;
+
+    /// Puerto mockeado: registra llamadas en memoria para verificar
+    /// qué le pidió el caso de uso, sin tocar una BD real.
+    struct RepoMock {
+        alumnos: Mutex<Vec<Alumno>>,
+        fallo_listado: bool,
+        guardados: Mutex<Vec<Alumno>>,
+        rangos_aplicados: Mutex<Option<(HashSet<usize>, i32, bool)>>,
+        eliminados: Mutex<Option<HashSet<usize>>>,
+    }
+
+    impl RepoMock {
+        fn nuevo() -> Self {
+            Self {
+                alumnos: Mutex::new(Vec::new()),
+                fallo_listado: false,
+                guardados: Mutex::new(Vec::new()),
+                rangos_aplicados: Mutex::new(None),
+                eliminados: Mutex::new(None),
+            }
+        }
+
+        fn con_alumnos(alumnos: Vec<Alumno>) -> Self {
+            let repo = Self::nuevo();
+            *repo.alumnos.lock().unwrap() = alumnos;
+            repo
+        }
+    }
+
+    impl AlumnoRepository for RepoMock {
+        fn save(&self, alumno: &Alumno) -> Result<(), ErrorRepositorio> {
+            self.guardados.lock().unwrap().push(alumno.clone());
+            Ok(())
+        }
+
+        fn fetch_all(&self) -> Result<Vec<Alumno>, ErrorRepositorio> {
+            if self.fallo_listado {
+                return Err(ErrorRepositorio::Consulta("fallo simulado".to_string()));
+            }
+            Ok(self.alumnos.lock().unwrap().clone())
+        }
+
+        fn update(&self, alumno: &Alumno) -> Result<(), ErrorRepositorio> {
+            let mut lista = self.alumnos.lock().unwrap();
+            match lista.iter_mut().find(|a| a.id == alumno.id) {
+                Some(slot) => *slot = alumno.clone(),
+                None => lista.push(alumno.clone()),
+            }
+            Ok(())
+        }
+
+        fn update_rangos(
+            &self,
+            ids: HashSet<usize>,
+            rango: i32,
+            rallita: bool,
+        ) -> Result<(), ErrorRepositorio> {
+            *self.rangos_aplicados.lock().unwrap() = Some((ids, rango, rallita));
+            Ok(())
+        }
+
+        fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+            *self.eliminados.lock().unwrap() = Some(ids);
+            Ok(())
+        }
+    }
+
+    struct LoggerMock;
+
+    impl Logger for LoggerMock {
+        fn debug(&self, _: &str) {}
+        fn info(&self, _: &str) {}
+        fn error(&self, _: &str) {}
+    }
+
+    fn servicio(repo: RepoMock) -> (ServicioAlumnos, Arc<RepoMock>) {
+        let repo = Arc::new(repo);
+        (
+            ServicioAlumnos::nuevo(repo.clone(), Arc::new(LoggerMock)),
+            repo,
+        )
+    }
+
+    fn datos_validos() -> DatosAlumno {
+        DatosAlumno {
+            nombre: "Juan Pérez".to_string(),
+            fecha_de_nacimiento: "2010-01-15".to_string(),
+            rango: 6,
+            representante: "Pedro Pérez".to_string(),
+            numero_contacto: "0412-0000000".to_string(),
+            rallita: false,
+        }
+    }
+
+    fn alumno_existente(id: usize) -> Alumno {
+        Alumno {
+            id,
+            nombre: "Viejo Nombre".to_string(),
+            rango: 8,
+            fecha_de_nacimiento: "2000-01-01".to_string(),
+            representante: "R".to_string(),
+            numero_contacto: "0412-0000000".to_string(),
+            rallita: false,
+        }
+    }
+
+    #[test]
+    fn agregar_guarda_aplicando_la_regla_de_rallita_para_dan() {
+        let (servicio, repo) = servicio(RepoMock::nuevo());
+        let mut datos = datos_validos();
+        datos.rango = -9; // 10° Dan
+        datos.rallita = true;
+
+        servicio.agregar(datos).expect("debería agregar");
+
+        let guardados = repo.guardados.lock().unwrap();
+        assert_eq!(guardados.len(), 1);
+        assert_eq!(guardados[0].rango, -9);
+        assert!(!guardados[0].rallita); // la regla de dominio la apaga
+    }
+
+    #[test]
+    fn agregar_rechaza_datos_invalidos_y_no_persiste() {
+        let (servicio, repo) = servicio(RepoMock::nuevo());
+        let mut datos = datos_validos();
+        datos.fecha_de_nacimiento = "31/12/2010".to_string();
+
+        assert!(matches!(
+            servicio.agregar(datos),
+            Err(ErrorAplicacion::Validacion(_))
+        ));
+        assert!(repo.guardados.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn actualizar_conserva_el_id_y_los_nuevos_campos() {
+        let (servicio, repo) = servicio(RepoMock::con_alumnos(vec![alumno_existente(7)]));
+
+        servicio
+            .actualizar(7, datos_validos())
+            .expect("debería actualizar");
+
+        let lista = repo.alumnos.lock().unwrap();
+        assert_eq!(lista.len(), 1);
+        assert_eq!(lista[0].id, 7);
+        assert_eq!(lista[0].nombre, "Juan Pérez");
+    }
+
+    #[test]
+    fn promover_pasa_los_ids_al_puerto() {
+        let (servicio, repo) = servicio(RepoMock::nuevo());
+        let ids: HashSet<usize> = HashSet::from([1, 2, 3]);
+
+        servicio.promover(ids.clone(), 5, true).expect("debería promover");
+
+        let aplicados = repo.rangos_aplicados.lock().unwrap().clone();
+        assert_eq!(aplicados, Some((ids, 5, true)));
+    }
+
+    #[test]
+    fn promover_sin_seleccion_es_un_noop() {
+        let (servicio, repo) = servicio(RepoMock::nuevo());
+
+        servicio
+            .promover(HashSet::new(), 5, true)
+            .expect("sin selección no debe fallar");
+
+        assert!(repo.rangos_aplicados.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn eliminar_pasa_los_ids_al_puerto() {
+        let (servicio, repo) = servicio(RepoMock::nuevo());
+        let ids: HashSet<usize> = HashSet::from([9]);
+
+        servicio.eliminar(ids.clone()).expect("debería eliminar");
+
+        assert_eq!(*repo.eliminados.lock().unwrap(), Some(ids));
+    }
+
+    #[test]
+    fn obtener_todos_traduce_el_error_del_puerto() {
+        let mut repo = RepoMock::nuevo();
+        repo.fallo_listado = true;
+        let (servicio, _) = servicio(repo);
+
+        match servicio.obtener_todos() {
+            Err(ErrorAplicacion::Repositorio(_)) => {}
+            otro => panic!("se esperaba error de repositorio, obtuve {otro:?}"),
+        }
+    }
+}
