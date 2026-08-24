@@ -243,7 +243,7 @@ pub fn Agregar() -> Element {
 
             };
 
-            let _ = estado.read().database.save(&alumno);
+            let _ = estado.read().repositorio.save(&alumno);
             estado.write().update();
             nombre.set("".to_string());
             fecha_nac.set("".to_string());
@@ -357,7 +357,7 @@ pub fn Editar() -> Element {
                                     alumno.numero_contacto = contacto.read().clone();
                                     alumno.rallita = rallita.read().clone();
 
-                                    let _ = estado.read().database.update(&alumno);
+                                    let _ = estado.read().repositorio.update(&alumno);
                                     estado.write().update();
                                 },
                                 texto_boton: "Guardar"
@@ -378,7 +378,7 @@ pub fn Editar() -> Element {
                                     texto_boton: "Aplicar cambios",
                                     on_click: move |_| {
                                         let ids_seleccionados = estado.read().seleccionados.clone();
-                                        let _ = estado.read().database.update_rangos(ids_seleccionados, *rango.read(), *rallita.read() );
+                                        let _ = estado.read().repositorio.update_rangos(ids_seleccionados, *rango.read(), *rallita.read() );
                                         estado.write().update();
                                     }
                                 }
@@ -432,7 +432,7 @@ pub fn Eliminar() -> Element {
                    class: "w-48 self-center py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
                    onclick: move |_| {
                        let set_ids = estado.read().seleccionados.clone();
-                       let _ = estado.write().database.delete(set_ids);
+                       let _ = estado.write().repositorio.delete(set_ids);
                        estado.write().seleccionados.clear();
                        estado.write().update();
                    },

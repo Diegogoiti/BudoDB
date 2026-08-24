@@ -1,5 +1,7 @@
-use crate::models::{Alumno, Database};
+use crate::application::ports::AlumnoRepository;
+use crate::models::Alumno;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Columnas {
@@ -18,21 +20,23 @@ pub enum Columnas {
 pub struct MyApp {
     pub alumnos: Vec<Alumno>,
     pub seleccionados: HashSet<usize>,
-    pub database: Database,
+    /// TEMPORAL (fase 2): acceso vía puerto. En la fase 3 se vuelve privado
+    /// y las vistas delegan en casos de uso.
+    pub repositorio: Arc<dyn AlumnoRepository>,
 }
 
 impl MyApp {
     /// Constructor con dependencias inyectadas. Solo lo invoca el composition root.
-    pub fn new(alumnos: Vec<Alumno>, database: Database) -> Self {
+    pub fn new(alumnos: Vec<Alumno>, repositorio: Arc<dyn AlumnoRepository>) -> Self {
         Self {
             alumnos,
             seleccionados: HashSet::new(),
-            database,
+            repositorio,
         }
     }
 
     pub fn update(&mut self) {
-        self.alumnos = self.database.fetch_all().unwrap();
+        self.alumnos = self.repositorio.fetch_all().unwrap();
     }
 
     pub fn toggle_seleccion(&mut self, id: usize) {

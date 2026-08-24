@@ -1,10 +1,9 @@
-//! contiene los modelos de los alumnos para manejarlos como instancias individuales
-//!  y el modelo del crud de la base de datos para abstraer operaciones
+//! contiene las entidades de negocio (`Alumno`, `Cintas`).
+//! TEMPORAL: en la fase 3 del refactor se dividirán hacia `domain`.
+//! La persistencia (`Database`) ya migró a `infrastructure/sqlite_repository.rs`.
 
 use chrono::{Datelike, Local, NaiveDate};
-use rusqlite;
-use rusqlite::{params_from_iter, Result, ToSql};
-use std::{collections::HashSet, fmt};
+use std::fmt;
 
 ///modelo que maneja los datos delos alumnos para tratarlos como instancias independientes
 /// de manera mas organizada y clara, contiene metodos como cinta, rango_str o edad que son setters,
@@ -84,7 +83,7 @@ Cinta/Nivel:    {cinta}
 Representante:  {representante}
 Contacto:       {contacto}
 Con Rallita:    {rallita}
-=========================="#,
+========================="#,
             id = self.id,
             nombre = self.nombre,
             fecha_nac = self.fecha_de_nacimiento,
@@ -96,180 +95,6 @@ Con Rallita:    {rallita}
             rallita = if self.rallita { "Sí" } else { "No" }
         )
     }
-}
-
-///modelo que maneja el crud de la base de datos para abstraer operaciones
-pub struct Database {
-    connection: rusqlite::Connection,
-}
-impl Database {
-    pub fn new(path: &str) -> rusqlite::Result<Self> {
-        // 1. Intentamos crear el directorio y capturamos si hay un error real de sistema
-        if let Err(e) = std::fs::create_dir_all("database") {
-            println!("Error creando carpeta database: {}", e);
-        }
-
-        // 2. Abrimos la conexión
-        let connection = rusqlite::Connection::open(path)?;
-
-        connection.pragma_update(None, "journal_mode", "WAL")?;
-
-        let db = Self { connection };
-
-        // 3. ¡IMPORTANTE! Asegúrate de llamar aquí a la inicialización de tablas
-        // Si no, aunque el archivo se cree, estará vacío y las consultas fallarán.
-        db.inicializar_tablas()?;
-
-        Ok(db)
-    }
-
-    fn inicializar_tablas(&self) -> rusqlite::Result<()> {
-        self.connection.execute(
-            "CREATE TABLE IF NOT EXISTS alumnos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            fecha_de_nacimiento TEXT NOT NULL,
-            rango INTEGER NOT NULL,
-            representante TEXT NOT NULL,
-            numero_contacto TEXT NOT NULL,
-            rallita BOOLEAN NOT NULL DEFAULT 0
-        )",
-            [],
-        )?;
-        Ok(())
-    }
-
-    pub fn save(&self, alumno: &Alumno) -> rusqlite::Result<()> {
-        self.connection.execute(
-            "INSERT INTO alumnos (nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![
-                alumno.nombre,
-                alumno.fecha_de_nacimiento,
-                alumno.rango,
-                alumno.representante,
-                alumno.numero_contacto,
-                alumno.rallita
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn fetch_all(&self) -> rusqlite::Result<Vec<Alumno>> {
-        let mut stmt = self.connection.prepare(
-        "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita FROM alumnos"
-    )?;
-
-        let alumno_iter = stmt.query_map([], |row| {
-            Ok(Alumno {
-                id: row.get(0)?,
-                nombre: row.get::<_, String>(1)?,
-                fecha_de_nacimiento: row.get::<_, String>(2)?,
-                rango: row.get(3)?,
-                representante: row.get::<_, String>(4)?,
-                numero_contacto: row.get::<_, String>(5)?,
-                rallita: row.get::<_, bool>(6)?,
-            })
-        })?;
-
-        let mut alumnos = Vec::new();
-        for alumno in alumno_iter {
-            alumnos.push(alumno?);
-        }
-        Ok(alumnos)
-    }
-
-    pub fn update(&self, alumno: &Alumno) -> rusqlite::Result<()> {
-        self.connection.execute(
-            "UPDATE alumnos SET nombre = ?1, fecha_de_nacimiento = ?2, rango = ?3, representante = ?4, numero_contacto = ?5, rallita = ?6 WHERE id = ?7",
-            rusqlite::params![
-                alumno.nombre,
-                alumno.fecha_de_nacimiento,
-                alumno.rango,
-                alumno.representante,
-                alumno.numero_contacto,
-                alumno.rallita,
-                alumno.id
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn update_rangos(
-        &self,
-        lista_ids: HashSet<usize>,
-        rango: i32,
-        rallita: bool,
-    ) -> Result<()> {
-        // 1. Generamos los comodines (?, ?, ...) según la cantidad de IDs
-        let cantidad_ids = lista_ids.len();
-        let comodines: String = std::iter::repeat("?")
-            .take(cantidad_ids)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        // 2. Armamos la query dinámica sin números en los '?' para que vayan en orden
-        let query = format!(
-            "UPDATE alumnos SET rango = ?, rallita = ? WHERE id IN ({});",
-            comodines
-        );
-
-        // 3. Juntamos TODOS los parámetros en un solo vector de referencias en el orden exacto
-        let mut parametros: Vec<&dyn ToSql> = vec![&rango, &rallita];
-
-        // Agregamos las referencias de cada ID al vector
-        for id in &lista_ids {
-            parametros.push(id);
-        }
-
-        // 4. Ejecutamos la query pasando el iterador de parámetros
-        self.connection
-            .execute(&query, params_from_iter(parametros))?;
-
-        Ok(())
-    }
-
-    pub fn delete(&self, lista_ids: HashSet<usize>) -> Result<()> {
-        // 1. Generamos los comodines (?, ?, ...) según la cantidad de IDs
-        let cantidad_ids = lista_ids.len();
-        let comodines: String = std::iter::repeat("?")
-            .take(cantidad_ids)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        // 2. Armamos la query dinámica de eliminación
-        let query = format!("DELETE FROM alumnos WHERE id IN ({});", comodines);
-
-        // 3. Juntamos las referencias de los IDs en el vector de parámetros
-        let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(cantidad_ids);
-
-        for id in &lista_ids {
-            parametros.push(id);
-        }
-
-        // 4. Ejecutamos la query pasando el iterador de parámetros
-        self.connection
-            .execute(&query, params_from_iter(parametros))?;
-
-        Ok(())
-    }
-
-    /*pub fn get_alumno_by_id(&self, id: i32) -> rusqlite::Result<Alumno> {
-        self.connection.query_row(
-        "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita FROM alumnos WHERE id = ?1",
-        rusqlite::params![id],
-        |row| {
-            Ok(Alumno {
-                id: row.get(0)?,
-                nombre: row.get::<_, String>(1)?,
-                fecha_de_nacimiento: row.get::<_, String>(2)?,
-                rango:row.get(3)?,
-                representante:row.get::<_, String>(4)?,
-                numero_contacto:row.get::<_, String>(5)?,
-                rallita:row.get::<_, bool>(6)?,
-                })
-        },
-    )
-    }*/
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,17 +2,15 @@
 //! arranque de la aplicación (regla 4). Todos los servicios/repositorios se
 //! construyen aquí y se inyectan hacia las capas superiores.
 
-use crate::application::ports::Logger;
+use crate::application::ports::{AlumnoRepository, Configuracion, Logger};
 use crate::infrastructure::console_logger::ConsoleLogger;
-use crate::models::Database;
+use crate::infrastructure::env_config::ConfigEntorno;
+use crate::infrastructure::sqlite_repository::SqliteAlumnoRepository;
 use crate::presentation::app::{App, CSS};
 use crate::presentation::my_app::MyApp;
 use dioxus::desktop::{Config, LogicalSize, WindowBuilder};
 use dioxus::prelude::*;
-
-/// Ruta por defecto de la base de datos.
-/// TEMPORAL: en la fase 2 pasa a leerse de configuración externa.
-const RUTA_BASE_DATOS: &str = "./database/database.db";
+use std::sync::Arc;
 
 /// Punto de entrada de la aplicación: configura la ventana y lanza el runtime
 /// de Dioxus. `main.rs` solo delega aquí.
@@ -59,15 +57,21 @@ pub fn construir_estado_aplicacion() -> MyApp {
 }
 
 fn intentar_construir_estado() -> Result<MyApp, String> {
-    let logger = ConsoleLogger;
+    // Orden de construcción del grafo: logger -> configuración -> repositorio -> estado.
+    let logger: Arc<dyn Logger> = Arc::new(ConsoleLogger);
+    let config = ConfigEntorno;
+    let ruta = config.ruta_base_de_datos();
+
     logger.info("Iniciando BudoDB...");
 
-    let database =
-        Database::new(RUTA_BASE_DATOS).map_err(|e| format!("no se pudo abrir la base de datos '{RUTA_BASE_DATOS}': {e}"))?;
-    let alumnos = database
+    let repositorio: Arc<dyn AlumnoRepository> = Arc::new(
+        SqliteAlumnoRepository::abrir(&ruta, logger.clone())
+            .map_err(|e| format!("no se pudo abrir la base de datos '{ruta}': {e}"))?,
+    );
+    let alumnos = repositorio
         .fetch_all()
         .map_err(|e| format!("no se pudieron cargar los alumnos iniciales: {e}"))?;
     logger.info("Base de datos lista");
 
-    Ok(MyApp::new(alumnos, database))
+    Ok(MyApp::new(alumnos, repositorio))
 }
