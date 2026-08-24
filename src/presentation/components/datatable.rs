@@ -4,8 +4,22 @@ use crate::presentation::my_app;
 use chrono::Local;
 use dioxus::prelude::*;
 
+/// Virtualización: altura fija de cada fila en píxeles. Cada `tr` fuerza esta
+/// altura con estilo inline, así el cálculo de posiciones es exacto.
+const ALTO_FILA_PX: f64 = 46.0;
+
+/// Filas renderizadas siempre presentes alrededor del viewport.
+const SOBRE_MUESTRA: usize = 20;
+
+/// Ventana mínima de filas renderizadas (cualquier alto de panel queda cubierto).
+const FILAS_VENTANA: usize = 80;
+
 ///componente que recibe un contexto con una clase myapp y clona el vertor alumnos
 /// para dibujar la tabla de los datos en la ventana
+///
+/// La tabla está VIRTUALIZADA: sin importar cuántos alumnos existan, solo se
+/// renderizan las filas cercanas a la posición de scroll (+sobremuestra). Dos
+/// filas-relleno mantienen la altura total del scroll y la cabecera sticky.
 #[component]
 pub fn DataTable(
     alumnos_lista: Signal<Vec<Alumno>>,
@@ -15,9 +29,36 @@ pub fn DataTable(
     let alumnos = alumnos_lista.read().clone();
     let nav = use_navigator();
     let hoy = Local::now().date_naive();
+    let mut scroll_y = use_signal(|| 0.0f64);
+
+    let total = alumnos.len();
+
+    // Primera fila a renderizar: según el scroll, con margen hacia arriba.
+    let inicio = (((*scroll_y.read() / ALTO_FILA_PX) as usize).saturating_sub(SOBRE_MUESTRA))
+        .min(total);
+    // Última fila (exclusiva): ventana + sobremuestra hacia abajo.
+    let fin = (inicio + FILAS_VENTANA + SOBRE_MUESTRA).min(total);
+
+    // Rellenos que simulan las filas no renderizadas para conservar
+    // la barra de desplazamiento y la inercia del scroll.
+    let alto_relleno_superior = inicio as f64 * ALTO_FILA_PX;
+    let alto_relleno_inferior = (total - fin) as f64 * ALTO_FILA_PX;
+
+    // Ventana visible: pares (índice real en la lista completa, alumno).
+    // El índice real mantiene el rayado cebra estable aunque solo se
+    // renderice una porción de la lista. Se clona porque el rsx captura
+    // los valores en closures `move`.
+    let ventana: Vec<(usize, Alumno)> = alumnos[inicio..fin]
+        .iter()
+        .enumerate()
+        .map(|(desplazamiento, alumno)| (inicio + desplazamiento, alumno.clone()))
+        .collect();
+
     rsx! {
 
-        div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl ",
+        div {
+            class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl ",
+            onscroll: move |e| scroll_y.set(e.data().scroll_top()),
             table { class: "w-full border-collapse text-left text-xs md:text-sm table-auto",
                 thead {
                     // sticky y top-0 mantienen la fila visible al bajar
@@ -36,8 +77,18 @@ pub fn DataTable(
                     }
                 }
                 tbody { class: "divide-y divide-gray-800 text-gray-300",
-                    for (i, alumno) in alumnos.into_iter().enumerate() {
+                    if alto_relleno_superior > 0.0 {
                         tr {
+                            td {
+                                colspan: 9,
+                                style: "height:{alto_relleno_superior}px;padding:0;border:none",
+                            }
+                        }
+                    }
+
+                    for (i, alumno) in ventana {
+                        tr {
+                            style: "height:{ALTO_FILA_PX}px",
                             class: {
                                 let es_seleccionado = estado.read().seleccionados.contains(&alumno.id);
                                 let base = if aplicar_color_seleccion && es_seleccionado {
@@ -82,6 +133,15 @@ pub fn DataTable(
                             td { class: "px-4 py-3 whitespace-nowrap", "{alumno.representante}" }
                             td { class: "px-4 py-3 text-blue-400 font-mono whitespace-nowrap",
                                 "{alumno.numero_contacto}"
+                            }
+                        }
+                    }
+
+                    if alto_relleno_inferior > 0.0 {
+                        tr {
+                            td {
+                                colspan: 9,
+                                style: "height:{alto_relleno_inferior}px;padding:0;border:none",
                             }
                         }
                     }
