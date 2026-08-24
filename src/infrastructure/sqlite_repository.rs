@@ -57,6 +57,28 @@ impl SqliteAlumnoRepository {
         )",
             [],
         )?;
+        drop(connection);
+        self.migrar_columna_eliminado()?;
+        Ok(())
+    }
+
+    /// Migración idempotente: agrega la columna `eliminado` a bases creadas
+    /// antes del borrado lógico. Las filas existentes quedan activas.
+    fn migrar_columna_eliminado(&self) -> rusqlite::Result<()> {
+        let connection = self.lock();
+        let ya_existe: bool = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('alumnos') WHERE name = 'eliminado'",
+            [],
+            |row| row.get::<_, i64>(0),
+        ).map(|n| n > 0)?;
+
+        if !ya_existe {
+            connection.execute(
+                "ALTER TABLE alumnos ADD COLUMN eliminado BOOLEAN NOT NULL DEFAULT 0",
+                [],
+            )?;
+            self.logger.info("Migración aplicada: columna 'eliminado' agregada");
+        }
         Ok(())
     }
 
@@ -109,7 +131,8 @@ impl AlumnoRepository for SqliteAlumnoRepository {
         let connection = self.lock();
         let mut stmt = connection
             .prepare(
-                "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita FROM alumnos",
+                // El borrado lógico oculta las filas marcadas de TODAS las vistas.
+                "SELECT id, nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita FROM alumnos WHERE eliminado = 0",
             )
             .map_err(error_consulta)?;
 
@@ -156,9 +179,10 @@ impl AlumnoRepository for SqliteAlumnoRepository {
             .collect::<Vec<_>>()
             .join(", ");
 
-        // 2. Armamos la query dinámica sin números en los '?' para que vayan en orden
+        // 2. Armamos la query dinámica sin números en los '?' para que vayan en orden.
+        // Nunca modifica filas ya eliminadas lógicamente.
         let query = format!(
-            "UPDATE alumnos SET rango = ?, rallita = ? WHERE id IN ({});",
+            "UPDATE alumnos SET rango = ?, rallita = ? WHERE id IN ({}) AND eliminado = 0;",
             comodines
         );
 
@@ -179,14 +203,17 @@ impl AlumnoRepository for SqliteAlumnoRepository {
     }
 
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
-        // 1. Generamos los comodines (?, ?, ...) según la cantidad de IDs
+        // BORRADO LÓGICO: no se hace DELETE físico; se marca la fila para que
+        // deje de aparecer en las consultas pero conserve su historial.
         let comodines: String = std::iter::repeat("?")
             .take(ids.len())
             .collect::<Vec<_>>()
             .join(", ");
 
-        // 2. Armamos la query dinámica de eliminación
-        let query = format!("DELETE FROM alumnos WHERE id IN ({});", comodines);
+        let query = format!(
+            "UPDATE alumnos SET eliminado = 1 WHERE id IN ({}) AND eliminado = 0;",
+            comodines
+        );
 
         // 3. Juntamos las referencias de los IDs en el vector de parámetros
         let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(ids.len());
@@ -200,7 +227,7 @@ impl AlumnoRepository for SqliteAlumnoRepository {
             .execute(&query, params_from_iter(parametros))
             .map_err(error_consulta)?;
         self.logger
-            .debug(&format!("{} alumnos eliminados", ids.len()));
+            .debug(&format!("{} alumnos marcados como eliminados", ids.len()));
         Ok(())
     }
 }

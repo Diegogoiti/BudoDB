@@ -37,6 +37,9 @@ impl std::error::Error for ErrorRepositorio {}
 
 /// Puerto de persistencia de alumnos. La capa de aplicación solo conoce esta
 /// abstracción, nunca la base de datos concreta (regla 1).
+///
+/// El borrado es LÓGICO: `delete` oculta los alumnos del sistema activo sin
+/// destruir su fila; `fetch_all` solo devuelve alumnos no eliminados.
 pub trait AlumnoRepository: Send + Sync {
     fn save(&self, alumno: &Alumno) -> Result<(), ErrorRepositorio>;
     fn fetch_all(&self) -> Result<Vec<Alumno>, ErrorRepositorio>;

@@ -107,3 +107,94 @@ fn la_tabla_se_crea_vacia_en_un_archivo_nuevo() {
 
     limpiar(&ruta);
 }
+
+#[test]
+fn el_borrado_es_logico_y_conserva_la_fila_fisica() {
+    let (repo, ruta) = abrir_bd("borrado_logico");
+
+    repo.save(&alumno("Ana", 6, false)).unwrap();
+    repo.save(&alumno("Beto", 3, true)).unwrap();
+    let todos = repo.fetch_all().unwrap();
+    let id_ana = todos.iter().find(|a| a.nombre == "Ana").map(|a| a.id).unwrap();
+
+    // Borrado lógico: desaparece del listado...
+    repo.delete(HashSet::from([id_ana])).unwrap();
+    let visibles = repo.fetch_all().unwrap();
+    assert_eq!(visibles.len(), 1);
+    assert_eq!(visibles[0].nombre, "Beto");
+
+    // ...pero la fila sigue en la base con eliminado = 1.
+    let cruda = rusqlite::Connection::open(&ruta).unwrap();
+    let (cantidad, eliminados): (i64, i64) = cruda
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(eliminado), 0) FROM alumnos",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(cantidad, 2);
+    assert_eq!(eliminados, 1);
+
+    // Promover un alumno ya eliminado no debe reactivarlo ni modificarlo.
+    repo.update_rangos(HashSet::from([id_ana]), 1, true).unwrap();
+    let tras_promo = repo.fetch_all().unwrap();
+    assert_eq!(tras_promo.len(), 1);
+    assert_ne!(tras_promo[0].id, id_ana);
+
+    drop(cruda);
+    limpiar(&ruta);
+}
+
+#[test]
+fn migra_bases_creadas_sin_columna_eliminado() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let ruta = std::env::temp_dir()
+        .join(format!("budodb_legacy_{}_{}.db", std::process::id(), nanos))
+        .to_string_lossy()
+        .into_owned();
+
+    // Simulamos una base histórica con el esquema original (sin `eliminado`)
+    // y datos precargados.
+    let legacy = rusqlite::Connection::open(&ruta).unwrap();
+    legacy
+        .execute(
+            "CREATE TABLE alumnos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            fecha_de_nacimiento TEXT NOT NULL,
+            rango INTEGER NOT NULL,
+            representante TEXT NOT NULL,
+            numero_contacto TEXT NOT NULL,
+            rallita BOOLEAN NOT NULL DEFAULT 0
+        )",
+            [],
+        )
+        .unwrap();
+    legacy
+        .execute(
+            "INSERT INTO alumnos (nombre, fecha_de_nacimiento, rango, representante, numero_contacto, rallita)
+             VALUES ('Histórico', '2000-01-01', 6, 'Rep', '0412-0000000', 0)",
+            [],
+        )
+        .unwrap();
+    drop(legacy);
+
+    // Al abrirla con el repositorio actual se migra sola y los datos siguen visibles.
+    let repo = SqliteAlumnoRepository::abrir(&ruta, Arc::new(LoggerSilencioso))
+        .expect("no se pudo abrir la BD legada");
+
+    let alumnos = repo.fetch_all().unwrap();
+    assert_eq!(alumnos.len(), 1);
+    assert_eq!(alumnos[0].nombre, "Histórico");
+    let id_historico = alumnos[0].id;
+
+    // Y el borrado lógico funciona sobre la base migrada.
+    repo.delete(HashSet::from([id_historico])).unwrap();
+    assert!(repo.fetch_all().unwrap().is_empty());
+
+    limpiar(&ruta);
+}

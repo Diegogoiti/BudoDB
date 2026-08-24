@@ -81,13 +81,14 @@ impl ServicioAlumnos {
         Ok(())
     }
 
-    /// Elimina varios alumnos por ID.
+    /// Elimina (borrado lógico) varios alumnos por ID: dejan de aparecer en
+    /// el sistema pero su registro se conserva en la base de datos.
     pub fn eliminar(&self, ids: HashSet<usize>) -> Result<(), ErrorAplicacion> {
         if ids.is_empty() {
             return Ok(());
         }
         self.repositorio.delete(ids)?;
-        self.logger.debug("Alumnos eliminados");
+        self.logger.debug("Alumnos marcados como eliminados");
         Ok(())
     }
 }
