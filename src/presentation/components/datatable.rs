@@ -108,10 +108,12 @@ pub fn DataTable(
                             style: "height:{ALTO_FILA_PX}px",
                             class: {
                                 let es_seleccionado = estado.read().seleccionados.contains(&alumno.id);
+                                // Rayado cebra con clases que EXISTEN en el
+                                // CSS compilado (gray-850 no existe).
                                 let base = if aplicar_color_seleccion && es_seleccionado {
                                     "bg-blue-500 hover:bg-blue-700 transition-colors"
                                 } else {
-                                    if i % 2 == 0 { "bg-gray-850 hover:bg-gray-700 transition-colors" } else { "bg-gray-800 hover:bg-gray-700 transition-colors" }
+                                    if i % 2 == 0 { "bg-gray-900 hover:bg-gray-700 transition-colors" } else { "bg-gray-800 hover:bg-gray-700 transition-colors" }
                                 };
                                 //let hover = "bg-gray-750";
                                 base
