@@ -1,4 +1,4 @@
-use crate::my_app::Columnas;
+use crate::presentation::my_app::Columnas;
 use dioxus::prelude::*;
 
 #[component]

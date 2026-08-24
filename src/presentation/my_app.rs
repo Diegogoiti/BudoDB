@@ -22,11 +22,10 @@ pub struct MyApp {
 }
 
 impl MyApp {
-    pub fn new() -> Self {
-        let database = Database::new("./database/database.db").unwrap();
-        let alumnos = database.fetch_all().unwrap();
+    /// Constructor con dependencias inyectadas. Solo lo invoca el composition root.
+    pub fn new(alumnos: Vec<Alumno>, database: Database) -> Self {
         Self {
-            alumnos: alumnos,
+            alumnos,
             seleccionados: HashSet::new(),
             database,
         }

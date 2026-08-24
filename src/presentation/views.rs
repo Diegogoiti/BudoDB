@@ -6,15 +6,15 @@
 //use std::intrinsics::fabs;
 use std::{usize, vec};
 
-use crate::components::datatable::DataTable;
-use crate::components::filter::Filter;
-use crate::components::form::Form;
-use crate::components::promotion_form::PromotionForm;
-use crate::components::searchbar::SearchBar;
+use crate::application::validation::*;
 use crate::models::Alumno;
 //use crate::models::{Alumno, Cintas, Database};
-use crate::my_app::{self, Columnas};
-use crate::utils::{self, *};
+use crate::presentation::components::datatable::DataTable;
+use crate::presentation::components::filter::Filter;
+use crate::presentation::components::form::Form;
+use crate::presentation::components::promotion_form::PromotionForm;
+use crate::presentation::components::searchbar::SearchBar;
+use crate::presentation::my_app::{self, Columnas};
 use dioxus::prelude::*;
 
 #[component]
@@ -210,7 +210,7 @@ pub fn Agregar() -> Element {
     let mut rallita = use_signal(|| false);
     //let mut msg_error = use_signal(|| "".to_string());
 
-    let contacto_valido = utils::contacto_valido(contacto.read().clone());
+    let contacto_valido = contacto_valido(contacto.read().clone());
 
     let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
 
@@ -338,7 +338,7 @@ pub fn Editar() -> Element {
                 }
                 1 => {
                     let id = *estado.read().seleccionados.iter().next().unwrap();
-                    let contacto_valido = utils::contacto_valido(contacto.read().clone());
+                    let contacto_valido = contacto_valido(contacto.read().clone());
                     let fecha_valida = es_fecha_valida2form(fecha_nac.read().clone());
                     let formulario_valido = (!nombre.read().is_empty(), fecha_valida, !representante.read().is_empty(), contacto_valido);
 

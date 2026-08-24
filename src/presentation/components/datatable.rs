@@ -1,6 +1,6 @@
 use crate::models::Alumno;
-use crate::my_app;
-use crate::Route;
+use crate::presentation::app::Route;
+use crate::presentation::my_app;
 use dioxus::prelude::*;
 
 ///componente que recibe un contexto con una clase myapp y clona el vertor alumnos
