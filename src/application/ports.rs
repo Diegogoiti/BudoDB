@@ -78,3 +78,11 @@ pub trait PagoRepository: Send + Sync {
 pub trait Configuracion: Send + Sync {
     fn ruta_base_de_datos(&self) -> String;
 }
+
+/// Puerto de AJUSTES DE LA APLICACIÓN gestionables desde la UI (persistidos),
+/// distinto de [`Configuracion`] que es solo lectura de entorno/arranque.
+/// Almacenamiento clave-valor genérico para crecer sin tocar el puerto.
+pub trait ConfiguracionAppRepository: Send + Sync {
+    fn obtener(&self, clave: &str) -> Result<Option<String>, ErrorRepositorio>;
+    fn guardar(&self, clave: &str, valor: &str) -> Result<(), ErrorRepositorio>;
+}

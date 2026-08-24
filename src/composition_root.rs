@@ -2,8 +2,12 @@
 //! arranque de la aplicación (regla 4). Todos los servicios/repositorios se
 //! construyen aquí y se inyectan hacia las capas superiores.
 
-use crate::application::ports::{AlumnoRepository, Configuracion, Logger, PagoRepository, RepresentanteRepository};
+use crate::application::ports::{
+    AlumnoRepository, ConfiguracionAppRepository, Configuracion, Logger, PagoRepository,
+    RepresentanteRepository,
+};
 use crate::application::service::ServicioAlumnos;
+use crate::application::service_ajustes::ServicioAjustes;
 use crate::application::service_pagos::ServicioPagos;
 use crate::application::service_representantes::ServicioRepresentantes;
 use crate::infrastructure::console_logger::ConsoleLogger;
@@ -77,19 +81,23 @@ fn intentar_construir_estado() -> Result<MyApp, String> {
     );
     let repo_alumnos: Arc<dyn AlumnoRepository> = sqlite.clone();
     let repo_representantes: Arc<dyn RepresentanteRepository> = sqlite.clone();
-    let repo_pagos: Arc<dyn PagoRepository> = sqlite;
+    let repo_pagos: Arc<dyn PagoRepository> = sqlite.clone();
+    let repo_ajustes: Arc<dyn ConfiguracionAppRepository> = sqlite;
 
     let servicio_alumnos = Arc::new(ServicioAlumnos::nuevo(repo_alumnos, logger.clone()));
     let servicio_representantes =
         Arc::new(ServicioRepresentantes::nuevo(repo_representantes, logger.clone()));
     let servicio_pagos = Arc::new(ServicioPagos::nuevo(repo_pagos, logger.clone()));
+    let servicio_ajustes = Arc::new(ServicioAjustes::nuevo(repo_ajustes, logger.clone()));
 
     logger.info("Base de datos lista");
 
     Ok(MyApp::new(
+        ruta,
         servicio_alumnos,
         servicio_representantes,
         servicio_pagos,
+        servicio_ajustes,
         logger,
     ))
 }

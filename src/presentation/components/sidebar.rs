@@ -35,9 +35,14 @@ pub fn Sidebar() -> Element {
                     }
                     hr { class: "my-6 border-gray-800" }
                     SidebarItem {
-                        to: Route::Administrador {},
-                        icon: "🛡️",
-                        label: "Administrador",
+                        to: Route::Pagos {},
+                        icon: "💳",
+                        label: "Pagos",
+                    }
+                    SidebarItem {
+                        to: Route::Ajustes {},
+                        icon: "⚙️",
+                        label: "Ajustes",
                     }
                 }
                 div { class: "p-4 bg-gray-950 text-center border-t border-gray-800",

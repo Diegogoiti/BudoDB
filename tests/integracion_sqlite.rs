@@ -5,7 +5,9 @@
 //! Como UNA estructura concreta implementa TRES puertos, cada prueba se liga
 //! al puerto que ejercita mediante un `&dyn Trait` explícito.
 
-use budodb::application::ports::{AlumnoRepository, Logger, PagoRepository, RepresentanteRepository};
+use budodb::application::ports::{
+    AlumnoRepository, ConfiguracionAppRepository, Logger, PagoRepository, RepresentanteRepository,
+};
 use budodb::domain::{Alumno, Pago, Representante};
 use budodb::infrastructure::sqlite_repository::SqliteRepositorio;
 use std::collections::HashSet;
@@ -417,6 +419,40 @@ fn una_base_legada_se_normaliza_a_la_relacion_por_clave() {
     assert!(!columnas_restantes.contains(&"representante".to_string()));
     assert!(!columnas_restantes.contains(&"numero_contacto".to_string()));
     assert!(columnas_restantes.contains(&"representante_id".to_string()));
+
+    limpiar(&ruta);
+}
+
+#[test]
+fn los_ajustes_persisten_y_se_actualizan_por_clave() {
+    let (repo, ruta) = abrir_bd("ajustes");
+
+    // Clave inexistente: None, sin errores.
+    assert_eq!(
+        ConfiguracionAppRepository::obtener(&repo, "monto_mensualidad").unwrap(),
+        None
+    );
+
+    // Guardar crea; volver a guardar ACTUALIZA (upsert).
+    ConfiguracionAppRepository::guardar(&repo, "monto_mensualidad", "1500").unwrap();
+    assert_eq!(
+        ConfiguracionAppRepository::obtener(&repo, "monto_mensualidad").unwrap(),
+        Some("1500".to_string())
+    );
+    ConfiguracionAppRepository::guardar(&repo, "monto_mensualidad", "2000.5").unwrap();
+    assert_eq!(
+        ConfiguracionAppRepository::obtener(&repo, "monto_mensualidad").unwrap(),
+        Some("2000.5".to_string())
+    );
+
+    // Persiste en el archivo: una segunda conexión lo ve.
+    drop(repo);
+    let repo2 =
+        SqliteRepositorio::abrir(&ruta, Arc::new(LoggerSilencioso)).expect("reapertura");
+    assert_eq!(
+        ConfiguracionAppRepository::obtener(&repo2, "monto_mensualidad").unwrap(),
+        Some("2000.5".to_string())
+    );
 
     limpiar(&ruta);
 }

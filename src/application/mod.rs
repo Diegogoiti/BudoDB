@@ -5,6 +5,7 @@ pub mod dto;
 pub mod error;
 pub mod ports;
 pub mod service;
+pub mod service_ajustes;
 pub mod service_pagos;
 pub mod service_representantes;
 pub mod validation;

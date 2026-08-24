@@ -443,16 +443,19 @@ pub fn Eliminar() -> Element {
     }
 }
 
-/// Panel de administrador: resumen del mes, registro/anulación de pagos de
-/// mensualidad y catálogo de representantes. Solo pinta datos ya cargados por
-/// los casos de uso en el ViewModel; toda validación vive en `application`.
+/// Panel de pagos: resumen del mes, registro/anulación de mensualidades y
+/// catálogo de representantes. Solo pinta datos ya cargados por los casos de
+/// uso en el ViewModel; toda validación vive en `application`.
 #[component]
-pub fn Administrador() -> Element {
+pub fn Pagos() -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
 
-    // Estado del formulario de pago
+    // Estado del formulario de pago (monto prellenado con el ajuste configurado)
     let mut pago_rep_id = use_signal(|| 0usize);
-    let mut monto_texto = use_signal(|| "".to_string());
+    let mut monto_texto = use_signal(|| {
+        let monto = estado.read().monto_predeterminado;
+        if monto > 0.0 { format!("{monto}") } else { String::new() }
+    });
     let mut observacion = use_signal(|| "".to_string());
     let mut mensaje = use_signal(|| (String::new(), false)); // (texto, es_error)
 
@@ -485,7 +488,7 @@ pub fn Administrador() -> Element {
 
             // Encabezado
             div { class: "text-center py-2",
-                h2 { class: "text-3xl font-bold text-gray-800", "Panel de Administrador" }
+                h2 { class: "text-3xl font-bold text-gray-800", "Panel de Pagos" }
                 p { class: "text-gray-500", "Mensualidades y representantes — {etiqueta_mes}" }
             }
 
@@ -696,6 +699,98 @@ pub fn Administrador() -> Element {
                             span { class: "text-blue-400 font-mono text-xs", "{r.numero_contacto}" }
                         }
                     })}
+                }
+            }
+        }
+    }
+}
+
+/// Panel de ajustes: configuraciones de la aplicación persistidas vía su
+/// puerto propio, más información de solo lectura sobre el sistema.
+#[component]
+pub fn Ajustes() -> Element {
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
+
+    let mut monto_texto = use_signal(|| {
+        let monto = estado.read().monto_predeterminado;
+        if monto > 0.0 { format!("{monto}") } else { String::new() }
+    });
+    let mut mensaje = use_signal(|| (String::new(), false)); // (texto, es_error)
+
+    let ruta_bd = estado.read().ruta_bd.clone();
+    let periodo = estado.read().etiqueta_periodo_actual();
+    let version = env!("CARGO_PKG_VERSION");
+
+    // Feedback en vivo con la MISMA regla que aplica el caso de uso.
+    let monto_ok = monto_texto
+        .read()
+        .trim()
+        .replace(',', ".")
+        .parse::<f64>()
+        .map(monto_valido)
+        .unwrap_or(false);
+
+    rsx! {
+        div { class: "flex flex-col h-full space-y-6 overflow-auto pr-1 max-w-3xl mx-auto",
+
+            // Encabezado
+            div { class: "text-center py-2",
+                h2 { class: "text-3xl font-bold text-gray-800", "Panel de Ajustes" }
+                p { class: "text-gray-500", "Configuración de la aplicación" }
+            }
+
+            // Configuración de mensualidad
+            div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-3",
+                h3 { class: "font-bold text-white", "Mensualidad" }
+                p { class: "text-xs text-gray-400",
+                    "Monto predeterminado: prellena el formulario del panel de Pagos cada mes."
+                }
+                div { class: "grid grid-cols-[200px_auto] gap-3 items-end",
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "text-xs font-semibold text-gray-400", "Monto predeterminado" }
+                        input {
+                            r#type: "text",
+                            class: if monto_ok || monto_texto.read().is_empty() { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none" } else { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-red-500 outline-none" },
+                            placeholder: "Ej: 1500.00",
+                            value: "{monto_texto}",
+                            oninput: move |e| monto_texto.set(e.value())
+                        }
+                    }
+                    button {
+                        class: if monto_ok { "px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors cursor-pointer" } else { "px-5 py-2 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed" },
+                        disabled: !monto_ok,
+                        onclick: move |_| {
+                            if !monto_ok { return; }
+                            match estado.write().cambiar_monto_predeterminado(monto_texto.read().clone()) {
+                                Ok(()) => mensaje.set(("Ajuste guardado".to_string(), false)),
+                                Err(error) => mensaje.set((error.to_string(), true)),
+                            }
+                        },
+                        "Guardar"
+                    }
+                }
+                if !mensaje.read().0.is_empty() {
+                    p { class: if mensaje.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" }, "{mensaje.read().0}" }
+                }
+            }
+
+            // Información del sistema (solo lectura)
+            div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-2",
+                h3 { class: "font-bold text-white", "Información del sistema" }
+                div { class: "flex justify-between items-center px-1 py-2 text-sm border-b border-gray-700/60",
+                    span { class: "text-gray-400", "Versión" }
+                    span { class: "text-gray-200 font-mono", "BudoDB v{version}" }
+                }
+                div { class: "flex justify-between items-center px-1 py-2 text-sm border-b border-gray-700/60",
+                    span { class: "text-gray-400", "Periodo administrado" }
+                    span { class: "text-gray-200", "{periodo}" }
+                }
+                div { class: "flex flex-col space-y-1 px-1 py-2 text-sm",
+                    span { class: "text-gray-400", "Base de datos" }
+                    span { class: "text-blue-400 font-mono text-xs break-all", "{ruta_bd}" }
+                    p { class: "text-[10px] text-gray-500 mt-1",
+                        "Se configura con la variable de entorno BUDODB_DB_PATH antes de abrir la aplicación."
+                    }
                 }
             }
         }

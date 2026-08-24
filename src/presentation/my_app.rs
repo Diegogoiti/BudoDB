@@ -1,7 +1,8 @@
-use crate::application::dto::{AlumnoVista, DatosAlumno, DatosPago, DatosRepresentante};
+use crate::application::dto::{AlumnoVista, DatosAlumno, DatosPago, DatosRepresentante, PagoVista};
 use crate::application::error::ErrorAplicacion;
 use crate::application::ports::Logger;
 use crate::application::service::ServicioAlumnos;
+use crate::application::service_ajustes::ServicioAjustes;
 use crate::application::service_pagos::ServicioPagos;
 use crate::application::service_representantes::ServicioRepresentantes;
 use crate::domain::{Alumno, Cintas, Representante};
@@ -31,25 +32,33 @@ pub struct MyApp {
     pub alumnos: Vec<AlumnoVista>,
     pub representantes: Vec<Representante>,
     /// Pagos registrados para `periodo_actual`.
-    pub pagos: Vec<crate::application::dto::PagoVista>,
+    pub pagos: Vec<PagoVista>,
     /// Representantes activos sin pago en `periodo_actual`.
     pub morosos: Vec<Representante>,
-    /// Mes que administra el panel, formato "YYYY-MM".
+    /// Mes que administra el panel de pagos, formato "YYYY-MM".
     pub periodo_actual: String,
+    /// Monto predeterminado de mensualidad configurado en Ajustes (0 = sin configurar).
+    pub monto_predeterminado: f64,
+    /// Ruta del archivo de base de datos (solo lectura, para el panel de Ajustes).
+    pub ruta_bd: String,
     pub seleccionados: HashSet<usize>,
     servicio_alumnos: Arc<ServicioAlumnos>,
     servicio_representantes: Arc<ServicioRepresentantes>,
     servicio_pagos: Arc<ServicioPagos>,
+    servicio_ajustes: Arc<ServicioAjustes>,
     logger: Arc<dyn Logger>,
 }
 
 impl MyApp {
     /// Constructor con dependencias inyectadas. Solo lo invoca el composition
     /// root. Carga los datos iniciales vía `refrescar`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        ruta_bd: String,
         servicio_alumnos: Arc<ServicioAlumnos>,
         servicio_representantes: Arc<ServicioRepresentantes>,
         servicio_pagos: Arc<ServicioPagos>,
+        servicio_ajustes: Arc<ServicioAjustes>,
         logger: Arc<dyn Logger>,
     ) -> Self {
         let ahora = Local::now();
@@ -59,10 +68,13 @@ impl MyApp {
             pagos: Vec::new(),
             morosos: Vec::new(),
             periodo_actual: format!("{:04}-{:02}", ahora.year(), ahora.month()),
+            monto_predeterminado: 0.0,
+            ruta_bd,
             seleccionados: HashSet::new(),
             servicio_alumnos,
             servicio_representantes,
             servicio_pagos,
+            servicio_ajustes,
             logger,
         };
         estado.refrescar();
@@ -70,6 +82,14 @@ impl MyApp {
     }
 
     fn refrescar(&mut self) {
+        // Ajuste de monto predeterminado (barato y estable entre paneles).
+        match self.servicio_ajustes.monto_mensualidad() {
+            Ok(monto) => self.monto_predeterminado = monto.unwrap_or(0.0),
+            Err(error) => self
+                .logger
+                .error(&format!("No se pudo leer el ajuste de mensualidad: {error}")),
+        }
+
         // Alumnos + representantes se juntan en la proyección de lectura.
         match (
             self.servicio_alumnos.obtener_todos(),
@@ -106,6 +126,20 @@ impl MyApp {
                 "No se pudo refrescar la lista de alumnos: {error}"
             )),
         }
+    }
+
+    /// Caso de uso de Ajustes: fija el monto predeterminado de la mensualidad.
+    pub fn cambiar_monto_predeterminado(&mut self, texto: String) -> Result<(), ErrorAplicacion> {
+        let monto = texto
+            .trim()
+            .replace(',', ".")
+            .parse::<f64>()
+            .map_err(|_| {
+                ErrorAplicacion::Validacion("El monto no es un número válido.".to_string())
+            })?;
+        self.servicio_ajustes.fijar_monto_mensualidad(monto)?;
+        self.monto_predeterminado = monto;
+        Ok(())
     }
 
     // ---------- Casos de uso de alumnos ----------

@@ -7,10 +7,11 @@
 //! así las migraciones de esquema corren en un solo lugar y en orden.
 
 use crate::application::ports::{
-    AlumnoRepository, ErrorRepositorio, Logger, PagoRepository, RepresentanteRepository,
+    AlumnoRepository, ConfiguracionAppRepository, ErrorRepositorio, Logger, PagoRepository,
+    RepresentanteRepository,
 };
 use crate::domain::{Alumno, Pago, Representante};
-use rusqlite::{params, params_from_iter, ToSql};
+use rusqlite::{params, params_from_iter, OptionalExtension, ToSql};
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -93,6 +94,13 @@ impl SqliteRepositorio {
             observacion TEXT NOT NULL DEFAULT '',
             eliminado BOOLEAN NOT NULL DEFAULT 0,
             FOREIGN KEY (representante_id) REFERENCES representantes(id)
+        )",
+            [],
+        )?;
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS ajustes (
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
         )",
             [],
         )?;
@@ -469,5 +477,34 @@ impl SqliteRepositorio {
             pagos.push(fila.map_err(error_consulta)?);
         }
         Ok(pagos)
+    }
+}
+
+impl ConfiguracionAppRepository for SqliteRepositorio {
+    fn obtener(&self, clave: &str) -> Result<Option<String>, ErrorRepositorio> {
+        let connection = self.lock();
+        let resultado = connection
+            .query_row(
+                "SELECT valor FROM ajustes WHERE clave = ?1",
+                params![clave],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(error_consulta)?;
+        Ok(resultado)
+    }
+
+    fn guardar(&self, clave: &str, valor: &str) -> Result<(), ErrorRepositorio> {
+        let connection = self.lock();
+        connection
+            .execute(
+                "INSERT INTO ajustes (clave, valor) VALUES (?1, ?2)
+                 ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+                params![clave, valor],
+            )
+            .map_err(error_consulta)?;
+        self.logger
+            .debug(&format!("Ajuste '{clave}' guardado"));
+        Ok(())
     }
 }
