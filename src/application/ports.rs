@@ -1,7 +1,7 @@
 //! Puertos (interfaces) que la capa de aplicación exige al mundo exterior.
 //! Las implementaciones concretas viven en la capa `infrastructure`.
 
-use crate::domain::{Alumno, Pago, Representante};
+use crate::domain::{Abono, Alumno, Deuda, Pago, Representante};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -70,6 +70,22 @@ pub trait PagoRepository: Send + Sync {
     fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Pago>, ErrorRepositorio>;
     /// Todos los pagos activos, del periodo que sea (historial).
     fn fetch_all(&self) -> Result<Vec<Pago>, ErrorRepositorio>;
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+}
+
+/// Puerto de persistencia de deudas mensuales.
+pub trait DeudaRepository: Send + Sync {
+    fn save(&self, deuda: &Deuda) -> Result<(), ErrorRepositorio>;
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Deuda>, ErrorRepositorio>;
+    fn fetch_all(&self) -> Result<Vec<Deuda>, ErrorRepositorio>;
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+}
+
+/// Puerto de persistencia de abonos (pagos parciales contra una deuda).
+pub trait AbonoRepository: Send + Sync {
+    fn save(&self, abono: &Abono) -> Result<(), ErrorRepositorio>;
+    fn fetch_por_deuda(&self, deuda_id: usize) -> Result<Vec<Abono>, ErrorRepositorio>;
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Abono>, ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 

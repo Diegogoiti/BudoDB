@@ -53,4 +53,29 @@ pub struct PagoVista {
     pub nombre_representante: String,
 }
 
-use crate::domain::{Alumno, Pago};
+/// Proyección de lectura de una deuda con todos los datos resueltos
+/// para la tabla principal del panel de pagos.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeudaVista {
+    pub deuda: Deuda,
+    pub nombre_representante: String,
+    pub telefono_representante: String,
+    /// Suma de todos los abonos registrados contra esta deuda.
+    pub total_abonado: f64,
+    /// saldo = deuda.monto - total_abonado (nunca negativo).
+    pub saldo: f64,
+    /// Estado derivado: Pagado / Parcial / Pendiente.
+    pub estado: EstadoDeuda,
+}
+
+/// Entrada para registrar un abono contra una deuda existente.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DatosAbono {
+    pub deuda_id: usize,
+    pub monto: f64,
+    /// Fecha de registro, formato "YYYY-MM-DD".
+    pub fecha: String,
+    pub observacion: String,
+}
+
+use crate::domain::{Alumno, Deuda, EstadoDeuda, Pago};

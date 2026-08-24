@@ -7,10 +7,10 @@
 //! así las migraciones de esquema corren en un solo lugar y en orden.
 
 use crate::application::ports::{
-    AlumnoRepository, ConfiguracionAppRepository, ErrorRepositorio, Logger, PagoRepository,
-    RepresentanteRepository,
+    AbonoRepository, AlumnoRepository, ConfiguracionAppRepository, DeudaRepository,
+    ErrorRepositorio, Logger, PagoRepository, RepresentanteRepository,
 };
-use crate::domain::{Alumno, Pago, Representante};
+use crate::domain::{Abono, Alumno, Deuda, Pago, Representante};
 use rusqlite::{params, params_from_iter, OptionalExtension, ToSql};
 use std::collections::HashSet;
 use std::path::Path;
@@ -101,6 +101,30 @@ impl SqliteRepositorio {
             "CREATE TABLE IF NOT EXISTS ajustes (
             clave TEXT PRIMARY KEY,
             valor TEXT NOT NULL
+        )",
+            [],
+        )?;
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS deudas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            representante_id INTEGER NOT NULL,
+            monto REAL NOT NULL,
+            periodo TEXT NOT NULL,
+            fecha TEXT NOT NULL,
+            eliminado BOOLEAN NOT NULL DEFAULT 0,
+            FOREIGN KEY (representante_id) REFERENCES representantes(id)
+        )",
+            [],
+        )?;
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS abonos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deuda_id INTEGER NOT NULL,
+            monto REAL NOT NULL,
+            fecha TEXT NOT NULL,
+            observacion TEXT NOT NULL DEFAULT '',
+            eliminado BOOLEAN NOT NULL DEFAULT 0,
+            FOREIGN KEY (deuda_id) REFERENCES deudas(id)
         )",
             [],
         )?;
@@ -455,7 +479,7 @@ impl PagoRepository for SqliteRepositorio {
     }
 }
 
-// Helpers de mapeo de pagos compartidos entre las dos lecturas del puerto.
+// Helpers de mapeo de pagos, deudas y abonos.
 
 impl SqliteRepositorio {
     fn mapear_pago(row: &rusqlite::Row) -> rusqlite::Result<Pago> {
@@ -477,6 +501,46 @@ impl SqliteRepositorio {
             pagos.push(fila.map_err(error_consulta)?);
         }
         Ok(pagos)
+    }
+
+    fn mapear_deuda(row: &rusqlite::Row) -> rusqlite::Result<Deuda> {
+        Ok(Deuda {
+            id: row.get(0)?,
+            representante_id: row.get(1)?,
+            monto: row.get(2)?,
+            periodo: row.get(3)?,
+            fecha: row.get(4)?,
+        })
+    }
+
+    fn mapear_deudas(
+        iter: Result<impl Iterator<Item = rusqlite::Result<Deuda>>, rusqlite::Error>,
+    ) -> Result<Vec<Deuda>, ErrorRepositorio> {
+        let mut deudas = Vec::new();
+        for fila in iter.map_err(error_consulta)? {
+            deudas.push(fila.map_err(error_consulta)?);
+        }
+        Ok(deudas)
+    }
+
+    fn mapear_abono(row: &rusqlite::Row) -> rusqlite::Result<Abono> {
+        Ok(Abono {
+            id: row.get(0)?,
+            deuda_id: row.get(1)?,
+            monto: row.get(2)?,
+            fecha: row.get(3)?,
+            observacion: row.get(4)?,
+        })
+    }
+
+    fn mapear_abonos(
+        iter: Result<impl Iterator<Item = rusqlite::Result<Abono>>, rusqlite::Error>,
+    ) -> Result<Vec<Abono>, ErrorRepositorio> {
+        let mut abonos = Vec::new();
+        for fila in iter.map_err(error_consulta)? {
+            abonos.push(fila.map_err(error_consulta)?);
+        }
+        Ok(abonos)
     }
 }
 
@@ -506,5 +570,88 @@ impl ConfiguracionAppRepository for SqliteRepositorio {
         self.logger
             .debug(&format!("Ajuste '{clave}' guardado"));
         Ok(())
+    }
+}
+
+impl DeudaRepository for SqliteRepositorio {
+    fn save(&self, deuda: &Deuda) -> Result<(), ErrorRepositorio> {
+        let connection = self.lock();
+        connection
+            .execute(
+                "INSERT INTO deudas (representante_id, monto, periodo, fecha) VALUES (?1, ?2, ?3, ?4)",
+                params![deuda.representante_id, deuda.monto, deuda.periodo, deuda.fecha],
+            )
+            .map_err(error_consulta)?;
+        self.logger.debug("Deuda guardada");
+        Ok(())
+    }
+
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Deuda>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection
+            .prepare(
+                "SELECT id, representante_id, monto, periodo, fecha FROM deudas WHERE periodo = ?1 AND eliminado = 0",
+            )
+            .map_err(error_consulta)?;
+
+        Self::mapear_deudas(stmt.query_map(params![periodo], Self::mapear_deuda))
+    }
+
+    fn fetch_all(&self) -> Result<Vec<Deuda>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection
+            .prepare(
+                "SELECT id, representante_id, monto, periodo, fecha FROM deudas WHERE eliminado = 0",
+            )
+            .map_err(error_consulta)?;
+
+        Self::mapear_deudas(stmt.query_map([], Self::mapear_deuda))
+    }
+
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        self.borrar_logicamente("deudas", ids, "deudas")
+    }
+}
+
+impl AbonoRepository for SqliteRepositorio {
+    fn save(&self, abono: &Abono) -> Result<(), ErrorRepositorio> {
+        let connection = self.lock();
+        connection
+            .execute(
+                "INSERT INTO abonos (deuda_id, monto, fecha, observacion) VALUES (?1, ?2, ?3, ?4)",
+                params![abono.deuda_id, abono.monto, abono.fecha, abono.observacion],
+            )
+            .map_err(error_consulta)?;
+        self.logger.debug("Abono guardado");
+        Ok(())
+    }
+
+    fn fetch_por_deuda(&self, deuda_id: usize) -> Result<Vec<Abono>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection
+            .prepare(
+                "SELECT id, deuda_id, monto, fecha, observacion FROM abonos WHERE deuda_id = ?1 AND eliminado = 0",
+            )
+            .map_err(error_consulta)?;
+
+        Self::mapear_abonos(stmt.query_map(params![deuda_id], Self::mapear_abono))
+    }
+
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Abono>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection
+            .prepare(
+                "SELECT a.id, a.deuda_id, a.monto, a.fecha, a.observacion
+                 FROM abonos a
+                 INNER JOIN deudas d ON a.deuda_id = d.id
+                 WHERE d.periodo = ?1 AND a.eliminado = 0",
+            )
+            .map_err(error_consulta)?;
+
+        Self::mapear_abonos(stmt.query_map(params![periodo], Self::mapear_abono))
+    }
+
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        self.borrar_logicamente("abonos", ids, "abonos")
     }
 }

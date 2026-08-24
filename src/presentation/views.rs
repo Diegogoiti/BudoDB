@@ -6,8 +6,9 @@
 //use std::intrinsics::fabs;
 use std::{usize, vec};
 
-use crate::application::dto::{DatosAlumno, DatosPago, DatosRepresentante};
+use crate::application::dto::{DatosAbono, DatosAlumno, DatosRepresentante};
 use crate::application::validation::*;
+use crate::domain::EstadoDeuda;
 use crate::presentation::components::datatable::DataTable;
 use crate::presentation::components::filter::Filter;
 use crate::presentation::components::form::Form;
@@ -263,7 +264,7 @@ pub fn Editar() -> Element {
     let mut representante_id = use_signal(|| 0usize);
     let mut rallita = use_signal(|| false);
 
-    let mut lista_seleccionados = use_signal(|| vec![]);
+    let mut lista_seleccionados = use_signal(Vec::new);
 
     let seleccionados = estado.read().seleccionados.clone();
     let alum_seleccionados = seleccionados.len();
@@ -443,220 +444,331 @@ pub fn Eliminar() -> Element {
     }
 }
 
-/// Panel de pagos: resumen del mes, registro/anulación de mensualidades y
-/// catálogo de representantes. Solo pinta datos ya cargados por los casos de
-/// uso en el ViewModel; toda validación vive en `application`.
+/// Texto compacto para montos: sin decimales cuando son enteros
+/// ("1500"), con ellos cuando no ("1500.5"). Evita "1500.00" ruidoso.
+fn fmt_monto(v: f64) -> String {
+    let r = (v * 100.0).round() / 100.0;
+    if (r - r.trunc()).abs() < f64::EPSILON {
+        format!("{}", r as i64)
+    } else {
+        format!("{r}")
+    }
+}
+
+/// (etiqueta, clases del badge) según el estado de la deuda.
+fn badge_estado(estado: &EstadoDeuda) -> (&'static str, &'static str) {
+    match estado {
+        EstadoDeuda::Pagado => ("Pagado", "bg-emerald-900 text-emerald-300"),
+        EstadoDeuda::Parcial => ("Parcial", "bg-amber-900 text-amber-300"),
+        EstadoDeuda::Pendiente => ("Pendiente", "bg-red-900 text-red-300"),
+    }
+}
+
+/// Color de la barra de progreso según el estado.
+fn clase_barra(estado: &EstadoDeuda) -> &'static str {
+    match estado {
+        EstadoDeuda::Pagado => "bg-emerald-500",
+        EstadoDeuda::Parcial => "bg-amber-500",
+        EstadoDeuda::Pendiente => "bg-red-500",
+    }
+}
+
+/// Panel de pagos: el ciclo completo de deudas y abonos del mes en UNA
+/// pantalla — estadísticas arriba, acciones al centro, tabla con progreso
+/// por representante, gestión de representantes abajo y modal de abono.
+/// Solo pinta datos ya cargados por los casos de uso en el ViewModel.
 #[component]
 pub fn Pagos() -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
 
-    // Estado del formulario de pago (monto prellenado con el ajuste configurado)
-    let mut pago_rep_id = use_signal(|| 0usize);
-    let mut monto_texto = use_signal(|| {
-        let monto = estado.read().monto_predeterminado;
-        if monto > 0.0 { format!("{monto}") } else { String::new() }
-    });
-    let mut observacion = use_signal(|| "".to_string());
-    let mut mensaje = use_signal(|| (String::new(), false)); // (texto, es_error)
+    // Modal de registro de abono
+    let mut modal_abono = use_signal(|| false);
+    let mut abono_deuda_id = use_signal(|| 0usize);
+    let mut abono_monto = use_signal(String::new);
+    let mut abono_observacion = use_signal(String::new);
+    let mut abono_msg = use_signal(|| (String::new(), false));
 
-    // Estado del formulario de representante
-    let mut rep_nombre = use_signal(|| "".to_string());
-    let mut rep_contacto = use_signal(|| "".to_string());
+    // Formulario compacto de representantes
+    let mut rep_nombre = use_signal(String::new);
+    let mut rep_contacto = use_signal(String::new);
 
-    // Lecturas derivadas de la caché del ViewModel
-    let etiqueta_mes = estado.read().etiqueta_periodo_actual();
-    let total = estado.read().total_del_mes();
-    let cantidad_pagos = estado.read().pagos.len();
-    let morosos = estado.read().morosos.clone();
+    // Mensaje de la acción "crear deudas"
+    let mut msg_deudas = use_signal(|| (String::new(), false));
+
+    // Una sola pasada de lectura sobre el contexto
+    let (etiqueta_mes, total_deudas, total_abonado, pagados, parciales, pendientes) = {
+        let e = estado.read();
+        (
+            e.etiqueta_periodo_actual(),
+            e.total_deudas_periodo(),
+            e.total_abonado_periodo(),
+            e.reps_pagados(),
+            e.reps_parciales(),
+            e.reps_pendientes(),
+        )
+    };
+    let por_cobrar = (total_deudas - total_abonado).max(0.0);
+
+    let deudas = estado.read().deudas.clone();
     let representantes = estado.read().representantes.clone();
-    let pagos = estado.read().pagos.clone();
+    let hay_pendientes = deudas.iter().any(|v| v.estado != EstadoDeuda::Pagado);
 
-    let rep_elegido = *pago_rep_id.read() > 0;
-    let monto_ok = monto_texto
-        .read()
-        .trim()
-        .replace(',', ".")
-        .parse::<f64>()
-        .map(monto_valido)
-        .unwrap_or(false);
-    let pago_listo = rep_elegido && monto_ok;
     let rep_formulario_ok =
         nombre_valido(&rep_nombre.read()) && contacto_valido(&rep_contacto.read());
 
+    // Deuda actualmente elegida en el modal (para el helper de saldo)
+    let deuda_elegida = estado
+        .read()
+        .deudas
+        .iter()
+        .find(|v| v.deuda.id == *abono_deuda_id.read())
+        .cloned();
+
+    // Avance global del mes (para la tarjeta de progreso), precalculado
+    // para mantener el rsx libre de expresiones con llaves anidadas.
+    let pct_global = if total_deudas > 0.0 {
+        (total_abonado / total_deudas * 100.0).min(100.0)
+    } else {
+        0.0
+    };
+    let texto_avance = if total_deudas > 0.0 {
+        format!("{pct_global:.0}% recaudado")
+    } else {
+        "Sin deudas aún".to_string()
+    };
+    let clase_avance = if total_deudas > 0.0 && pendientes == 0 {
+        clase_barra(&EstadoDeuda::Pagado)
+    } else if total_deudas > 0.0 && pagados == 0 {
+        clase_barra(&EstadoDeuda::Pendiente)
+    } else {
+        clase_barra(&EstadoDeuda::Parcial)
+    };
+
+    // Abre el modal apuntando a una deuda concreta, con el saldo prellenado.
+    let mut abrir_modal = move |id: usize, saldo: f64| {
+        abono_deuda_id.set(id);
+        abono_monto.set(fmt_monto(saldo));
+        abono_observacion.set(String::new());
+        abono_msg.set((String::new(), false));
+        modal_abono.set(true);
+    };
+
     rsx! {
-        div { class: "flex flex-col h-full space-y-6 overflow-auto pr-1",
+        div { class: "flex flex-col h-full space-y-5 overflow-auto pr-1",
 
-            // Encabezado
-            div { class: "text-center py-2",
-                h2 { class: "text-3xl font-bold text-gray-800", "Panel de Pagos" }
-                p { class: "text-gray-500", "Mensualidades y representantes — {etiqueta_mes}" }
-            }
-
-            // Resumen del mes
-            div { class: "grid grid-cols-3 gap-4",
-                div { class: "bg-gray-800 rounded-xl p-4 text-center shadow-lg border border-gray-700",
-                    p { class: "text-xs uppercase tracking-widest text-gray-400", "Recaudado" }
-                    p { class: "text-2xl font-bold text-emerald-400", {format!("{total:.2}")} }
-                }
-                div { class: "bg-gray-800 rounded-xl p-4 text-center shadow-lg border border-gray-700",
-                    p { class: "text-xs uppercase tracking-widest text-gray-400", "Pagos del mes" }
-                    p { class: "text-2xl font-bold text-blue-400", "{cantidad_pagos}" }
-                }
-                div { class: "bg-gray-800 rounded-xl p-4 text-center shadow-lg border border-gray-700",
-                    p { class: "text-xs uppercase tracking-widest text-gray-400", "Morosos" }
-                    p { class: if morosos.is_empty() { "text-2xl font-bold text-emerald-400" } else { "text-2xl font-bold text-red-400" },
-                        "{morosos.len()}"
+            // ── Encabezado: título + chip del periodo ──
+            div { class: "flex items-end justify-between py-1",
+                div {
+                    h2 { class: "text-3xl font-bold text-gray-800", "💳 Panel de Pagos" }
+                    p { class: "text-gray-500 text-sm mt-1",
+                        "Deudas y abonos de mensualidad — vista del mes completo."
                     }
-                    if !morosos.is_empty() {
-                        p { class: "text-[10px] text-gray-500 mt-1 truncate",
-                            {morosos.iter().map(|r| r.nombre.as_str()).collect::<Vec<_>>().join(", ")}
-                        }
-                    }
+                }
+                span { class: "px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-xs font-bold tracking-widest uppercase whitespace-nowrap",
+                    "{etiqueta_mes}"
                 }
             }
 
-            // Registrar pago
-            div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-3",
-                h3 { class: "font-bold text-white", "Registrar mensualidad" }
-                div { class: "grid grid-cols-[1fr_140px_1fr_auto] gap-3 items-end",
-                    div { class: "flex flex-col space-y-1",
-                        label { class: "text-xs font-semibold text-gray-400", "Representante" }
-                        select {
-                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer",
-                            style: "-webkit-appearance:none; appearance:none; background-color:#111827;",
-                            value: "{pago_rep_id}",
-                            onchange: move |e| {
-                                if let Ok(id) = e.value().parse::<usize>() { pago_rep_id.set(id); }
-                            },
-                            option {
-                                class: "bg-gray-900", value: "0",
-                                selected: !rep_elegido, disabled: true,
-                                "-- Seleccione --"
-                            }
-                            {representantes.iter().map(|r| rsx! {
-                                option {
-                                    class: "bg-gray-900", value: "{r.id}",
-                                    selected: *pago_rep_id.read() == r.id,
-                                    "{r.nombre}"
-                                }
-                            })}
+            // ── Estadísticas del mes (4 tarjetas oscuras) ──
+            div { class: "grid grid-cols-4 gap-4",
+                div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
+                    p { class: "text-xs uppercase tracking-widest text-gray-400", "💰 Deudas del mes" }
+                    p { class: "text-2xl font-bold text-gray-100 mt-1", {fmt_monto(total_deudas)} }
+                    p { class: "text-[11px] text-gray-500 mt-1", "{deudas.len()} representantes" }
+                }
+                div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
+                    p { class: "text-xs uppercase tracking-widest text-gray-400", "✅ Recaudado" }
+                    p { class: "text-2xl font-bold text-emerald-400 mt-1", {fmt_monto(total_abonado)} }
+                    p { class: "text-[11px] text-gray-500 mt-1", "{pagados} pagaron completo" }
+                }
+                div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
+                    p { class: "text-xs uppercase tracking-widest text-gray-400", "⏳ Por cobrar" }
+                    p { class: "text-2xl font-bold text-amber-400 mt-1", {fmt_monto(por_cobrar)} }
+                    p { class: "text-[11px] text-gray-500 mt-1", "{parciales} abonaron parcial · {pendientes} sin abonos" }
+                }
+                div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
+                    p { class: "text-xs uppercase tracking-widest text-gray-400", "📊 Avance" }
+                    div { class: "mt-3 h-2 w-full bg-gray-700 rounded-full overflow-hidden",
+                        div {
+                            class: "h-full rounded-full {clase_avance}",
+                            style: "width:{pct_global:.0}%",
                         }
                     }
-                    div { class: "flex flex-col space-y-1",
-                        label { class: "text-xs font-semibold text-gray-400", "Monto" }
-                        input {
-                            r#type: "text",
-                            class: if monto_ok || monto_texto.read().is_empty() { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none" } else { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-red-500 outline-none" },
-                            placeholder: "1500.00",
-                            value: "{monto_texto}",
-                            oninput: move |e| monto_texto.set(e.value())
-                        }
-                    }
-                    div { class: "flex flex-col space-y-1",
-                        label { class: "text-xs font-semibold text-gray-400", "Observación (opcional)" }
-                        input {
-                            r#type: "text",
-                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none",
-                            placeholder: "Ej: incluye hermano",
-                            value: "{observacion}",
-                            oninput: move |e| observacion.set(e.value())
-                        }
-                    }
+                    p { class: "text-[11px] text-gray-500 mt-1", "{texto_avance}" }
+                }
+            }
+
+            // ── Barra de acciones + leyenda ──
+            div { class: "flex items-center justify-between gap-3 flex-wrap",
+                div { class: "flex items-center gap-3",
                     button {
-                        class: if pago_listo { "px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors cursor-pointer" } else { "px-5 py-2 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed" },
-                        disabled: !pago_listo,
+                        class: "px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                         onclick: move |_| {
-                            if !pago_listo { return; }
-                            let datos = DatosPago {
-                                representante_id: *pago_rep_id.read(),
-                                monto: monto_texto.read().trim().replace(',', ".").parse::<f64>().unwrap_or(0.0),
-                                periodo: estado.read().periodo_actual.clone(),
-                                fecha: Local::now().format(crate::domain::alumno::FORMATO_FECHA).to_string(),
-                                observacion: observacion.read().clone(),
-                            };
-                            match estado.write().registrar_pago(datos) {
-                                Ok(()) => {
-                                    mensaje.set(("Mensualidad registrada".to_string(), false));
-                                    monto_texto.set("".to_string());
-                                    observacion.set("".to_string());
+                            match estado.write().crear_deudas_del_mes() {
+                                Ok(creadas) => {
+                                    if creadas == 0 {
+                                        msg_deudas.set(("Todos los representantes ya tienen su deuda este mes.".to_string(), false));
+                                    } else {
+                                        msg_deudas.set((format!("Se crearon {creadas} deudas."), false));
+                                    }
                                 }
-                                Err(error) => mensaje.set((error.to_string(), true)),
+                                Err(error) => msg_deudas.set((error.to_string(), true)),
                             }
                         },
-                        "Registrar"
+                        "＋ Crear deudas del mes"
+                    }
+                    button {
+                        class: if hay_pendientes {
+                            "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                        } else {
+                            "px-5 py-2.5 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed text-sm"
+                        },
+                        disabled: !hay_pendientes,
+                        title: if hay_pendientes { "Registrar un abono" } else { "Todas las deudas están saldadas" },
+                        onclick: move |_| {
+                            // Preselecciona la primera deuda con saldo pendiente.
+                            if let Some(v) = estado.read().deudas.iter().find(|v| v.estado != EstadoDeuda::Pagado) {
+                                abrir_modal(v.deuda.id, v.saldo);
+                            }
+                        },
+                        "💵 Registrar abono"
+                    }
+                    if !msg_deudas.read().0.is_empty() {
+                        span {
+                            class: if msg_deudas.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
+                            "{msg_deudas.read().0}"
+                        }
                     }
                 }
-                if !mensaje.read().0.is_empty() {
-                    p { class: if mensaje.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" }, "{mensaje.read().0}" }
+                // Leyenda de colores (ayuda rápida)
+                div { class: "flex items-center gap-3 text-[11px] text-gray-500",
+                    span { class: "flex items-center gap-1",
+                        i { class: "inline-block w-2 h-2 rounded-full bg-emerald-500" }
+                        "Pagado"
+                    }
+                    span { class: "flex items-center gap-1",
+                        i { class: "inline-block w-2 h-2 rounded-full bg-amber-500" }
+                        "Abono parcial"
+                    }
+                    span { class: "flex items-center gap-1",
+                        i { class: "inline-block w-2 h-2 rounded-full bg-red-500" }
+                        "Pendiente"
+                    }
                 }
             }
 
-            // Tabla de pagos del mes
-            div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl max-h-72",
+            // ── Tabla de deudas del mes ──
+            div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl max-h-80",
                 table { class: "w-full border-collapse text-left text-xs md:text-sm",
                     thead {
                         tr { class: "sticky top-0 text-white bg-gray-800 z-10",
-                            th { class: "px-4 py-3", "ID" }
                             th { class: "px-4 py-3", "Representante" }
-                            th { class: "px-4 py-3", "Monto" }
-                            th { class: "px-4 py-3", "Registrado" }
-                            th { class: "px-4 py-3", "Observación" }
+                            th { class: "px-4 py-3 text-right", "Mensualidad" }
+                            th { class: "px-4 py-3 text-right", "Abonado" }
+                            th { class: "px-4 py-3 w-40", "Progreso" }
+                            th { class: "px-4 py-3 text-right", "Saldo" }
+                            th { class: "px-4 py-3 text-center", "Estado" }
                             th { class: "px-4 py-3", "" }
                         }
                     }
                     tbody { class: "divide-y divide-gray-800 text-gray-300",
-                        if pagos.is_empty() {
+                        if deudas.is_empty() {
                             tr {
-                                td { colspan: 6, class: "px-4 py-6 text-center text-gray-500 italic",
-                                    "Sin pagos registrados este mes"
-                                }
-                            }
-                        }
-                        for vista in pagos {
-                            tr {
-                                key: "{vista.pago.id}",
-                                class: "hover:bg-gray-700/50",
-                                td { class: "px-4 py-2.5 font-mono text-gray-500", "#{vista.pago.id}" }
-                                td { class: "px-4 py-2.5 font-medium text-white whitespace-nowrap", "{vista.nombre_representante}" }
-                                td { class: "px-4 py-2.5 text-emerald-400 font-mono", {format!("{:.2}", vista.pago.monto)} }
-                                td { class: "px-4 py-2.5 whitespace-nowrap", "{vista.pago.fecha}" }
-                                td { class: "px-4 py-2.5 text-gray-400", "{vista.pago.observacion}" }
-                                td { class: "px-4 py-2.5 text-right",
-                                    button {
-                                        class: "text-red-400 hover:text-red-300 font-bold text-xs cursor-pointer",
-                                        title: "Anular pago",
-                                        onclick: move |_| {
-                                            let _ = estado.write().anular_pago(vista.pago.id);
-                                        },
-                                        "✕ Anular"
+                                td { colspan: 7, class: "px-4 py-10 text-center",
+                                    p { class: "text-3xl mb-2", "🗓️" }
+                                    p { class: "text-gray-400 font-medium", "Este mes aún no tiene deudas" }
+                                    p { class: "text-gray-500 text-xs mt-1",
+                                        "Pulsa \"＋ Crear deudas del mes\" para generarlas automáticamente."
                                     }
                                 }
                             }
                         }
+                        {(deudas.iter()).map(|vista| {
+                            let id_deuda = vista.deuda.id;
+                            let saldo_texto = fmt_monto(vista.saldo);
+                            let pct = if vista.deuda.monto > 0.0 {
+                                (vista.total_abonado / vista.deuda.monto * 100.0).min(100.0)
+                            } else {
+                                0.0
+                            };
+                            let (etiqueta, clases) = badge_estado(&vista.estado);
+                            let abrible = vista.estado != EstadoDeuda::Pagado;
+                            let saldo_fila = vista.saldo;
+                            rsx! {
+                            tr {
+                                key: "{id_deuda}",
+                                class: "hover:bg-gray-700/50",
+                                onclick: move |_| {
+                                    if abrible {
+                                        abrir_modal(id_deuda, saldo_fila);
+                                    }
+                                },
+                                td { class: "px-4 py-2.5",
+                                    p { class: "font-medium text-white truncate max-w-48", "{vista.nombre_representante}" }
+                                    p { class: "text-[11px] text-gray-500 font-mono", "{vista.telefono_representante}" }
+                                }
+                                td { class: "px-4 py-2.5 text-right font-mono text-gray-300",
+                                    "{fmt_monto(vista.deuda.monto)}"
+                                }
+                                td { class: "px-4 py-2.5 text-right font-mono text-emerald-400",
+                                    "{fmt_monto(vista.total_abonado)}"
+                                }
+                                td { class: "px-4 py-2.5",
+                                    div { class: "h-2 w-full bg-gray-700 rounded-full overflow-hidden",
+                                        div {
+                                            class: "h-full rounded-full {clase_barra(&vista.estado)}",
+                                            style: "width:{pct:.0}%",
+                                        }
+                                    }
+                                    p { class: "text-[10px] text-gray-500 mt-1", "{pct:.0}%" }
+                                }
+                                td { class: "px-4 py-2.5 text-right font-mono font-bold text-amber-400",
+                                    "{saldo_texto}"
+                                }
+                                td { class: "px-4 py-2.5 text-center",
+                                    span { class: "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {clases}",
+                                        "{etiqueta}"
+                                    }
+                                }
+                                td { class: "px-4 py-2.5 text-right",
+                                    if abrible {
+                                        button {
+                                            class: "px-2 py-1 rounded bg-gray-800 border border-gray-700 text-emerald-400 hover:text-white hover:border-emerald-500 font-bold text-xs transition-colors cursor-pointer",
+                                            onclick: move |_| abrir_modal(id_deuda, saldo_fila),
+                                            "+ Abono"
+                                        }
+                                    }
+                                }
+                            }
+                            }
+                        })}
                     }
                 }
             }
 
-            // Catálogo de representantes
+            // ── Gestión de representantes (compacta, misma pantalla) ──
             div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-3",
-                h3 { class: "font-bold text-white", "Representantes ({representantes.len()})" }
-                div { class: "grid grid-cols-[1fr_200px_auto] gap-3 items-end",
-                    div { class: "flex flex-col space-y-1",
+                div { class: "flex items-center justify-between",
+                    h3 { class: "font-bold text-white", "👥 Representantes ({representantes.len()})" }
+                }
+                // Alta rápida en línea
+                div { class: "flex items-end gap-2",
+                    div { class: "flex flex-col space-y-1 flex-1",
                         label { class: "text-xs font-semibold text-gray-400", "Nombre" }
                         input {
                             r#type: "text",
-                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none",
+                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                             placeholder: "Ej: Pedro Pérez",
                             value: "{rep_nombre}",
                             oninput: move |e| rep_nombre.set(e.value())
                         }
                     }
-                    div { class: "flex flex-col space-y-1",
+                    div { class: "flex flex-col space-y-1 w-44",
                         label { class: "text-xs font-semibold text-gray-400", "Teléfono" }
                         input {
                             r#type: "tel",
                             maxlength: "12",
-                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none",
+                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                             placeholder: "0412-0000000",
                             value: "{rep_contacto}",
                             oninput: move |e| {
@@ -671,7 +783,11 @@ pub fn Pagos() -> Element {
                         }
                     }
                     button {
-                        class: if rep_formulario_ok { "px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors cursor-pointer" } else { "px-5 py-2 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed" },
+                        class: if rep_formulario_ok {
+                            "px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                        } else {
+                            "px-4 py-2 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed text-sm"
+                        },
                         disabled: !rep_formulario_ok,
                         onclick: move |_| {
                             if !rep_formulario_ok { return; }
@@ -679,26 +795,173 @@ pub fn Pagos() -> Element {
                                 nombre: rep_nombre.read().clone(),
                                 numero_contacto: rep_contacto.read().clone(),
                             };
-                            match estado.write().agregar_representante(datos) {
-                                Ok(()) => {
-                                    rep_nombre.set("".to_string());
-                                    rep_contacto.set("".to_string());
-                                }
-                                Err(_) => {}
+                            if estado.write().agregar_representante(datos).is_ok() {
+                                rep_nombre.set(String::new());
+                                rep_contacto.set(String::new());
                             }
                         },
-                        "+ Agregar"
+                        "＋ Agregar"
                     }
                 }
-                ul { class: "divide-y divide-gray-700/60 mt-2",
+                // Listado en grilla de 2 columnas con avatar-inicial
+                div { class: "grid grid-cols-2 gap-2 mt-2",
                     {representantes.iter().map(|r| rsx! {
-                        li {
+                        div {
                             key: "{r.id}",
-                            class: "flex justify-between items-center px-1 py-2 text-sm",
-                            span { class: "text-gray-200", "{r.nombre}" }
-                            span { class: "text-blue-400 font-mono text-xs", "{r.numero_contacto}" }
+                            class: "flex items-center gap-3 px-3 py-2 bg-gray-900 rounded-lg border border-gray-800",
+                            span { class: "w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-none",
+                                {r.nombre.chars().next().unwrap_or('?').to_string()}
+                            }
+                            div { class: "min-w-0",
+                                p { class: "text-sm text-gray-100 truncate", "{r.nombre}" }
+                                p { class: "text-[11px] text-gray-500 font-mono", "{r.numero_contacto}" }
+                            }
                         }
                     })}
+                }
+            }
+        }
+
+        // ═══ Modal: registrar abono ═══
+        if *modal_abono.read() {
+            div {
+                class: "fixed inset-0 z-50 flex items-center justify-center bg-black/60",
+                onclick: move |_| modal_abono.set(false),
+                div {
+                    class: "bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-6 w-full max-w-sm space-y-4 mx-4",
+                    onclick: move |e| e.stop_propagation(),
+
+                    // Título + cerrar
+                    div { class: "flex items-center justify-between",
+                        h3 { class: "text-lg font-bold text-white", "💵 Registrar abono" }
+                        button {
+                            class: "text-gray-400 hover:text-white text-xl leading-none cursor-pointer",
+                            onclick: move |_| modal_abono.set(false),
+                            "✕"
+                        }
+                    }
+
+                    // Selector de deuda pendiente
+                    div { class: "flex flex-col space-y-1",
+                        div { class: "flex items-center justify-between",
+                            label { class: "text-xs font-semibold text-gray-400", "Deuda" }
+                            if let Some(v) = &deuda_elegida {
+                                span { class: "text-xs text-gray-500",
+                                    "Saldo: "
+                                    span { class: "text-amber-400 font-bold", "{fmt_monto(v.saldo)}" }
+                                }
+                            }
+                        }
+                        select {
+                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50",
+                            value: "{abono_deuda_id}",
+                            onchange: move |e| {
+                                if let Ok(id) = e.value().parse::<usize>() {
+                                    abono_deuda_id.set(id);
+                                    // Autocompleta el monto con el saldo restante.
+                                    if let Some(v) = estado.read().deudas.iter().find(|d| d.deuda.id == id) {
+                                        abono_monto.set(fmt_monto(v.saldo));
+                                    }
+                                    abono_msg.set((String::new(), false));
+                                }
+                            },
+                            option { class: "bg-gray-900", value: "0", "-- Seleccione --" }
+                            {estado.read().deudas.iter().filter(|v| v.estado != EstadoDeuda::Pagado).map(|v| rsx! {
+                                option {
+                                    key: "{v.deuda.id}",
+                                    class: "bg-gray-900", value: "{v.deuda.id}",
+                                    selected: *abono_deuda_id.read() == v.deuda.id,
+                                    "{v.nombre_representante} — saldo {fmt_monto(v.saldo)}"
+                                }
+                            })}
+                        }
+                    }
+
+                    // Monto
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "text-xs font-semibold text-gray-400", "Monto" }
+                        input {
+                            r#type: "text",
+                            class: if abono_monto.read().trim().is_empty() {
+                                "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50"
+                            } else if abono_monto.read().trim().replace(',', ".").parse::<f64>().map(|m| m > 0.0).unwrap_or(false) {
+                                "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50"
+                            } else {
+                                "p-2 rounded-lg bg-gray-900 text-gray-100 border border-red-500 outline-none ring-2 ring-red-500/30"
+                            },
+                            placeholder: "Ej: 500",
+                            value: "{abono_monto}",
+                            oninput: move |e| {
+                                abono_monto.set(e.value());
+                                abono_msg.set((String::new(), false));
+                            }
+                        }
+                    }
+
+                    // Observación
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "text-xs font-semibold text-gray-400", "Observación (opcional)" }
+                        input {
+                            r#type: "text",
+                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                            placeholder: "Ej: efectivo, pago parcial…",
+                            value: "{abono_observacion}",
+                            oninput: move |e| abono_observacion.set(e.value())
+                        }
+                    }
+
+                    if !abono_msg.read().0.is_empty() {
+                        p {
+                            class: if abono_msg.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
+                            "{abono_msg.read().0}"
+                        }
+                    }
+
+                    // Acciones del modal
+                    div { class: "flex gap-2 justify-end pt-1",
+                        button {
+                            class: "px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors cursor-pointer",
+                            onclick: move |_| modal_abono.set(false),
+                            "Cancelar"
+                        }
+                        button {
+                            class: "px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
+                            onclick: move |_| {
+                                let deuda_id = *abono_deuda_id.read();
+                                if deuda_id == 0 {
+                                    abono_msg.set(("Seleccione una deuda.".to_string(), true));
+                                    return;
+                                }
+                                let monto = abono_monto.read().trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
+                                if monto <= 0.0 {
+                                    abono_msg.set(("El monto debe ser mayor a cero.".to_string(), true));
+                                    return;
+                                }
+                                if let Some(v) = estado.read().deudas.iter().find(|d| d.deuda.id == deuda_id) {
+                                    if monto > v.saldo + 0.009 {
+                                        abono_msg.set((format!("El monto excede el saldo ({saldo}).", saldo = fmt_monto(v.saldo)), true));
+                                        return;
+                                    }
+                                }
+                                let datos = DatosAbono {
+                                    deuda_id,
+                                    monto,
+                                    fecha: Local::now().format(crate::domain::alumno::FORMATO_FECHA).to_string(),
+                                    observacion: abono_observacion.read().clone(),
+                                };
+                                match estado.write().registrar_abono(datos) {
+                                    Ok(()) => {
+                                        modal_abono.set(false);
+                                        abono_monto.set(String::new());
+                                        abono_observacion.set(String::new());
+                                        abono_msg.set((String::new(), false));
+                                    }
+                                    Err(error) => abono_msg.set((error.to_string(), true)),
+                                }
+                            },
+                            "Guardar abono"
+                        }
+                    }
                 }
             }
         }
@@ -713,7 +976,7 @@ pub fn Ajustes() -> Element {
 
     let mut monto_texto = use_signal(|| {
         let monto = estado.read().monto_predeterminado;
-        if monto > 0.0 { format!("{monto}") } else { String::new() }
+        if monto > 0.0 { fmt_monto(monto) } else { String::new() }
     });
     let mut mensaje = use_signal(|| (String::new(), false)); // (texto, es_error)
 
@@ -734,30 +997,35 @@ pub fn Ajustes() -> Element {
         div { class: "flex flex-col h-full space-y-6 overflow-auto pr-1 max-w-3xl mx-auto",
 
             // Encabezado
-            div { class: "text-center py-2",
-                h2 { class: "text-3xl font-bold text-gray-800", "Panel de Ajustes" }
-                p { class: "text-gray-500", "Configuración de la aplicación" }
+            div { class: "flex items-end justify-between py-1",
+                div {
+                    h2 { class: "text-3xl font-bold text-gray-800", "⚙️ Panel de Ajustes" }
+                    p { class: "text-gray-500 text-sm mt-1", "Configuración de la aplicación." }
+                }
+                span { class: "px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-xs font-bold tracking-widest uppercase whitespace-nowrap",
+                    "{periodo}"
+                }
             }
 
             // Configuración de mensualidad
             div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-3",
-                h3 { class: "font-bold text-white", "Mensualidad" }
+                h3 { class: "font-bold text-white", "💵 Mensualidad" }
                 p { class: "text-xs text-gray-400",
-                    "Monto predeterminado: prellena el formulario del panel de Pagos cada mes."
+                    "Monto predeterminado: prellena la generación de deudas del panel de Pagos cada mes."
                 }
-                div { class: "grid grid-cols-[200px_auto] gap-3 items-end",
-                    div { class: "flex flex-col space-y-1",
+                div { class: "flex items-end gap-2",
+                    div { class: "flex flex-col space-y-1 w-56",
                         label { class: "text-xs font-semibold text-gray-400", "Monto predeterminado" }
                         input {
                             r#type: "text",
-                            class: if monto_ok || monto_texto.read().is_empty() { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none" } else { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-red-500 outline-none" },
-                            placeholder: "Ej: 1500.00",
+                            class: if monto_ok || monto_texto.read().is_empty() { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50" } else { "p-2 rounded-lg bg-gray-900 text-gray-100 border border-red-500 outline-none ring-2 ring-red-500/30" },
+                            placeholder: "Ej: 1500",
                             value: "{monto_texto}",
                             oninput: move |e| monto_texto.set(e.value())
                         }
                     }
                     button {
-                        class: if monto_ok { "px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors cursor-pointer" } else { "px-5 py-2 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed" },
+                        class: if monto_ok { "px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm" } else { "px-5 py-2 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed text-sm" },
                         disabled: !monto_ok,
                         onclick: move |_| {
                             if !monto_ok { return; }
@@ -776,8 +1044,8 @@ pub fn Ajustes() -> Element {
 
             // Información del sistema (solo lectura)
             div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-2",
-                h3 { class: "font-bold text-white", "Información del sistema" }
-                div { class: "flex justify-between items-center px-1 py-2 text-sm border-b border-gray-700/60",
+                h3 { class: "font-bold text-white", "ℹ️ Información del sistema" }
+                div { class: "flex justify-between items-center px-1 py-2 text-sm border-b border-gray-700",
                     span { class: "text-gray-400", "Versión" }
                     span { class: "text-gray-200 font-mono", "BudoDB v{version}" }
                 }

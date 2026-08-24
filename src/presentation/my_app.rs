@@ -1,8 +1,10 @@
-use crate::application::dto::{AlumnoVista, DatosAlumno, DatosPago, DatosRepresentante, PagoVista};
+use crate::application::dto::{AlumnoVista, DatosAlumno, DatosAbono, DatosPago, DatosRepresentante, DeudaVista, PagoVista};
 use crate::application::error::ErrorAplicacion;
 use crate::application::ports::Logger;
 use crate::application::service::ServicioAlumnos;
+use crate::application::service_abonos::ServicioAbonos;
 use crate::application::service_ajustes::ServicioAjustes;
+use crate::application::service_deudas::ServicioDeudas;
 use crate::application::service_pagos::ServicioPagos;
 use crate::application::service_representantes::ServicioRepresentantes;
 use crate::domain::{Alumno, Cintas, Representante};
@@ -31,10 +33,12 @@ pub enum Columnas {
 pub struct MyApp {
     pub alumnos: Vec<AlumnoVista>,
     pub representantes: Vec<Representante>,
-    /// Pagos registrados para `periodo_actual`.
+    /// Pagos legacy del periodo actual (históricos, sin deuda).
     pub pagos: Vec<PagoVista>,
-    /// Representantes activos sin pago en `periodo_actual`.
+    /// Representantes activos sin pago en `periodo_actual` (legacy).
     pub morosos: Vec<Representante>,
+    /// Deudas del periodo actual con saldos y estados ya resueltos.
+    pub deudas: Vec<DeudaVista>,
     /// Mes que administra el panel de pagos, formato "YYYY-MM".
     pub periodo_actual: String,
     /// Monto predeterminado de mensualidad configurado en Ajustes (0 = sin configurar).
@@ -44,8 +48,11 @@ pub struct MyApp {
     pub seleccionados: HashSet<usize>,
     servicio_alumnos: Arc<ServicioAlumnos>,
     servicio_representantes: Arc<ServicioRepresentantes>,
+    #[allow(dead_code)]
     servicio_pagos: Arc<ServicioPagos>,
     servicio_ajustes: Arc<ServicioAjustes>,
+    servicio_deudas: Arc<ServicioDeudas>,
+    servicio_abonos: Arc<ServicioAbonos>,
     logger: Arc<dyn Logger>,
 }
 
@@ -59,6 +66,8 @@ impl MyApp {
         servicio_representantes: Arc<ServicioRepresentantes>,
         servicio_pagos: Arc<ServicioPagos>,
         servicio_ajustes: Arc<ServicioAjustes>,
+        servicio_deudas: Arc<ServicioDeudas>,
+        servicio_abonos: Arc<ServicioAbonos>,
         logger: Arc<dyn Logger>,
     ) -> Self {
         let ahora = Local::now();
@@ -67,6 +76,7 @@ impl MyApp {
             representantes: Vec::new(),
             pagos: Vec::new(),
             morosos: Vec::new(),
+            deudas: Vec::new(),
             periodo_actual: format!("{:04}-{:02}", ahora.year(), ahora.month()),
             monto_predeterminado: 0.0,
             ruta_bd,
@@ -75,6 +85,8 @@ impl MyApp {
             servicio_representantes,
             servicio_pagos,
             servicio_ajustes,
+            servicio_deudas,
+            servicio_abonos,
             logger,
         };
         estado.refrescar();
@@ -102,7 +114,7 @@ impl MyApp {
                 );
                 self.representantes = representantes;
 
-                // Pagos y morosos dependen de ambas listas.
+                // Pagos legacy y morosos dependen de ambas listas.
                 match self.servicio_pagos.listar_del_periodo(
                     &self.periodo_actual.clone(),
                     &self.representantes.clone(),
@@ -120,6 +132,17 @@ impl MyApp {
                     Err(error) => self
                         .logger
                         .error(&format!("No se pudo calcular la morosidad: {error}")),
+                }
+
+                // Deudas del periodo (nuevo sistema).
+                match self.servicio_deudas.listar_del_periodo(
+                    &self.periodo_actual.clone(),
+                    &self.representantes.clone(),
+                ) {
+                    Ok(deudas) => self.deudas = deudas,
+                    Err(error) => self.logger.error(&format!(
+                        "No se pudieron cargar las deudas del periodo: {error}"
+                    )),
                 }
             }
             (Err(error), _) | (_, Err(error)) => self.logger.error(&format!(
@@ -215,6 +238,76 @@ impl MyApp {
     /// Etiqueta legible del periodo actual ("Agosto 2026") para el encabezado.
     pub fn etiqueta_periodo_actual(&self) -> String {
         crate::domain::pago::etiqueta_de_periodo(&self.periodo_actual)
+    }
+
+    // ---------- Casos de uso de deudas/abonos ----------
+
+    /// Crea deudas del mes para representantes que aún no tienen una en el
+    /// periodo activo. Requiere que el monto esté configurado en Ajustes.
+    pub fn crear_deudas_del_mes(&mut self) -> Result<usize, ErrorAplicacion> {
+        let monto = self.monto_predeterminado;
+        if monto <= 0.0 {
+            return Err(ErrorAplicacion::Validacion(
+                "Configure el monto de mensualidad en Ajustes primero.".to_string(),
+            ));
+        }
+        let fecha = Local::now().format("%Y-%m-%d").to_string();
+        let reps = self.representantes.clone();
+        let periodo = self.periodo_actual.clone();
+        let creadas = self.servicio_deudas.crear_deudas_del_mes(
+            &periodo,
+            monto,
+            &fecha,
+            &reps,
+        )?;
+        self.refrescar();
+        Ok(creadas)
+    }
+
+    /// Registra un abono contra una deuda existente.
+    pub fn registrar_abono(&mut self, datos: DatosAbono) -> Result<(), ErrorAplicacion> {
+        self.servicio_abonos.registrar(datos)?;
+        self.refrescar();
+        Ok(())
+    }
+
+    // ---------- Estadísticas del sistema de deudas ----------
+
+    /// Monto total de todas las deudas del periodo (monto × num deudas).
+    pub fn total_deudas_periodo(&self) -> f64 {
+        self.deudas.iter().map(|v| v.deuda.monto).sum()
+    }
+
+    /// Monto total abonado en el periodo.
+    pub fn total_abonado_periodo(&self) -> f64 {
+        self.deudas.iter().map(|v| v.total_abonado).sum()
+    }
+
+    /// Cantidad de representantes que fully pagaron.
+    pub fn reps_pagados(&self) -> usize {
+        use crate::domain::EstadoDeuda;
+        self.deudas
+            .iter()
+            .filter(|v| v.estado == EstadoDeuda::Pagado)
+            .count()
+    }
+
+    /// Cantidad con abono parcial.
+    pub fn reps_parciales(&self) -> usize {
+        use crate::domain::EstadoDeuda;
+        self.deudas
+            .iter()
+            .filter(|v| v.estado == EstadoDeuda::Parcial)
+            .count()
+    }
+
+    /// Cantidad sin abono alguno (pendientes totales).
+    pub fn reps_pendientes(&self) -> usize {
+        use crate::domain::EstadoDeuda;
+        self.deudas
+            .iter()
+            .filter(|v| v.estado == EstadoDeuda::Pendiente)
+            .count()
     }
 
     // ---------- Consultas locales sobre la caché ----------

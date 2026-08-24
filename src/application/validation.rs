@@ -3,7 +3,7 @@
 //! La presentación reutiliza estas mismas funciones para pintar feedback
 //! en vivo, así la regla nunca se duplica.
 
-use super::dto::{DatosAlumno, DatosPago, DatosRepresentante};
+use super::dto::{DatosAbono, DatosAlumno, DatosPago, DatosRepresentante};
 use super::error::ErrorAplicacion;
 use crate::domain::alumno::FORMATO_FECHA;
 use chrono::NaiveDate;
@@ -107,6 +107,26 @@ pub fn validar_datos_pago(datos: &DatosPago) -> Result<(), ErrorAplicacion> {
     if !es_periodo_valido(&datos.periodo) {
         return Err(ErrorAplicacion::Validacion(
             "El periodo debe tener formato AAAA-MM.".to_string(),
+        ));
+    }
+    if !es_fecha_valida(&datos.fecha) {
+        return Err(ErrorAplicacion::Validacion(
+            "La fecha de registro no es válida.".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Validación completa antes de registrar un abono contra una deuda.
+pub fn validar_datos_abono(datos: &DatosAbono) -> Result<(), ErrorAplicacion> {
+    if datos.deuda_id == 0 {
+        return Err(ErrorAplicacion::Validacion(
+            "El abono debe estar asociado a una deuda.".to_string(),
+        ));
+    }
+    if !monto_valido(datos.monto) {
+        return Err(ErrorAplicacion::Validacion(
+            "El monto del abono debe ser un número positivo.".to_string(),
         ));
     }
     if !es_fecha_valida(&datos.fecha) {
