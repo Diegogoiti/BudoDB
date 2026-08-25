@@ -70,6 +70,12 @@ pub fn Filter(
                             search_text.set(evt.value());
                             notificar();
                         },
+                        // Opción para quitar el filtro por completo
+                        option {
+                            value: "",
+                            selected: search_text.read().is_empty(),
+                            "Todas"
+                        }
                         {cintas.iter().map(|cinta| rsx! {
                             option {
                                 value: "{cinta.label()}",

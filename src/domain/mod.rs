@@ -5,6 +5,7 @@ pub mod abono;
 pub mod alumno;
 pub mod cintas;
 pub mod deuda;
+pub mod historial_pago;
 pub mod pago;
 pub mod representante;
 
@@ -12,5 +13,6 @@ pub use abono::Abono;
 pub use alumno::Alumno;
 pub use cintas::Cintas;
 pub use deuda::{Deuda, EstadoDeuda};
+pub use historial_pago::HistorialPago;
 pub use pago::Pago;
 pub use representante::Representante;

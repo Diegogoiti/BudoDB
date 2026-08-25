@@ -4,8 +4,10 @@
 //! - `Datos*`: entrada de formularios.
 //! - `*Vista`: lectura compuesta para pintar tablas (proyección).
 
-/// Entrada para crear o editar un alumno. El contacto ya no vive aquí:
-/// el alumno referencia a su representante por ID.
+use crate::domain::{Alumno, Deuda, EstadoDeuda, HistorialPago, Pago};
+
+/// Entrada para crear o editar un alumno. El representante se vincula
+/// por ID (FK) — no se guardan strings directos en el alumno.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatosAlumno {
     pub nombre: String,
@@ -34,13 +36,12 @@ pub struct DatosPago {
     pub observacion: String,
 }
 
-/// Proyección de lectura: un alumno junto al nombre/teléfono de su
-/// representante ya resueltos, listo para pintarse en una tabla sin que la
-/// UI conozca cómo se relacionan las entidades.
+/// Proyección de lectura para pintar la tabla de alumnos.
+/// Resuelve el nombre y teléfono del representante para que la UI
+/// no tenga que hacer joins manualmente.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AlumnoVista {
     pub alumno: Alumno,
-    /// Vacío si el alumno no tiene representante asignado.
     pub nombre_representante: String,
     pub telefono_representante: String,
 }
@@ -78,4 +79,21 @@ pub struct DatosAbono {
     pub observacion: String,
 }
 
-use crate::domain::{Alumno, Deuda, EstadoDeuda, Pago};
+/// Entrada para registrar un movimiento en el historial de pagos.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DatosHistorialPago {
+    pub representante_id: usize,
+    pub tipo: String,
+    pub monto: f64,
+    pub periodo: String,
+    pub fecha: String,
+    pub observacion: String,
+}
+
+/// Proyección de lectura de un registro del historial de pagos
+/// con el nombre del representante resuelto.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HistorialPagoVista {
+    pub historial: HistorialPago,
+    pub nombre_representante: String,
+}

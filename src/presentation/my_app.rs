@@ -5,12 +5,14 @@ use crate::application::service::ServicioAlumnos;
 use crate::application::service_abonos::ServicioAbonos;
 use crate::application::service_ajustes::ServicioAjustes;
 use crate::application::service_deudas::ServicioDeudas;
+use crate::application::service_historial::ServicioHistorialPagos;
 use crate::application::service_pagos::ServicioPagos;
 use crate::application::service_representantes::ServicioRepresentantes;
 use crate::domain::{Alumno, Cintas, Representante};
 use chrono::{Datelike, Local};
 use std::collections::HashSet;
 use std::sync::Arc;
+
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Columnas {
@@ -53,8 +55,13 @@ pub struct MyApp {
     servicio_ajustes: Arc<ServicioAjustes>,
     servicio_deudas: Arc<ServicioDeudas>,
     servicio_abonos: Arc<ServicioAbonos>,
+    #[allow(dead_code)]
+    servicio_historial: Arc<ServicioHistorialPagos>,
     logger: Arc<dyn Logger>,
 }
+
+// Re-exportar validaciones para que views.rs pueda usar representante_valido
+// al estilo del viejo codebase.
 
 impl MyApp {
     /// Constructor con dependencias inyectadas. Solo lo invoca el composition
@@ -68,6 +75,8 @@ impl MyApp {
         servicio_ajustes: Arc<ServicioAjustes>,
         servicio_deudas: Arc<ServicioDeudas>,
         servicio_abonos: Arc<ServicioAbonos>,
+    #[allow(dead_code)]
+    servicio_historial: Arc<ServicioHistorialPagos>,
         logger: Arc<dyn Logger>,
     ) -> Self {
         let ahora = Local::now();
@@ -87,6 +96,7 @@ impl MyApp {
             servicio_ajustes,
             servicio_deudas,
             servicio_abonos,
+            servicio_historial,
             logger,
         };
         estado.refrescar();
@@ -108,11 +118,11 @@ impl MyApp {
             self.servicio_representantes.obtener_todos(),
         ) {
             (Ok(alumnos), Ok(representantes)) => {
+                self.representantes = representantes;
                 self.alumnos = crate::application::service::armar_vistas_alumnos(
                     &alumnos,
-                    &representantes,
+                    &self.representantes,
                 );
-                self.representantes = representantes;
 
                 // Pagos legacy y morosos dependen de ambas listas.
                 match self.servicio_pagos.listar_del_periodo(
@@ -355,16 +365,15 @@ impl MyApp {
                     .cloned()
                     .collect();
             } else {
-                return Vec::new(); // Si el query no es un número válido, no hay coincidencia exacta
+                return Vec::new();
             }
         }
 
-        // Resto de columnas (Búsqueda parcial por texto como la tenías)
+        // Resto de columnas (búsqueda parcial por texto)
         self.alumnos
             .iter()
             .filter(|v| match col {
                 Columnas::Nombre => v.alumno.nombre.to_lowercase().contains(&q),
-                // El representante y el teléfono viven en la proyección resuelta
                 Columnas::Representante => v.nombre_representante.to_lowercase().contains(&q),
                 Columnas::Telefono => v.telefono_representante.contains(&q),
                 _ => true,
@@ -378,51 +387,56 @@ impl MyApp {
             .iter()
             .find(|v| v.alumno.id == id)
             .map(|v| v.alumno.clone())
-            .expect("Error: El ID del alumno no existe en la base de datos") // Rompe el programa de forma controlada si es None
+            .expect("Error: El ID del alumno no existe en la base de datos")
     }
 
-    pub fn filtrar_edad(&self, edad: String) -> Vec<AlumnoVista> {
-        if edad.is_empty() {
-            return self.alumnos.clone();
-        }
-        let hoy = Local::now().date_naive();
-        self.alumnos
-            .iter()
-            .filter(|v| v.alumno.edad(hoy) == edad)
-            .cloned()
-            .collect()
-    }
-
-    pub fn filtrar_cinta(&self, cinta_label: String, solo_rallita: bool) -> Vec<AlumnoVista> {
-        if cinta_label.is_empty() {
-            return self.alumnos.clone();
+    /// Filtra una lista (ya buscada) por cinta o edad. Un valor vacío significa
+    /// "sin filtro activo" y devuelve la lista tal cual. Permite encadenar
+    /// búsqueda y filtro en la vista única de alumnos.
+    pub fn filtrar_lista(
+        &self,
+        base: Vec<AlumnoVista>,
+        col: Columnas,
+        valor: String,
+        solo_rallita: bool,
+    ) -> Vec<AlumnoVista> {
+        if valor.is_empty() {
+            return base;
         }
 
-        self.alumnos
-            .iter()
-            .filter(|v| {
-                let alumno = &v.alumno;
-                let cinta_alumno = Cintas::from_rango(alumno.rango);
+        match col {
+            Columnas::Edad => {
+                let hoy = Local::now().date_naive();
+                base.into_iter()
+                    .filter(|v| v.alumno.edad(hoy) == valor)
+                    .collect()
+            }
+            Columnas::Cinta => base
+                .into_iter()
+                .filter(|v| {
+                    let alumno = &v.alumno;
+                    let cinta_alumno = Cintas::from_rango(alumno.rango);
 
-                let cinta = match cinta_label.as_str() {
-                    "Azul (todos)" => {
-                        // Comparamos contra las variantes exactas del Enum
-                        matches!(cinta_alumno, Cintas::Azul1 | Cintas::Azul2)
-                    }
-                    "Marrón (todos)" => {
-                        // Comparamos contra las variantes exactas del Enum
-                        matches!(
-                            cinta_alumno,
-                            Cintas::Marron1 | Cintas::Marron2 | Cintas::Marron3
-                        )
-                    }
-                    // Para etiquetas individuales ("Blanca", "Azul 1"), usamos .label()
-                    // que es lo que el usuario ve y selecciona en el dropdown
-                    _ => cinta_alumno.label() == cinta_label,
-                };
-                cinta && alumno.rallita == solo_rallita
-            })
-            .cloned()
-            .collect()
+                    let cinta = match valor.as_str() {
+                        "Azul (todos)" => {
+                            // Comparamos contra las variantes exactas del Enum
+                            matches!(cinta_alumno, Cintas::Azul1 | Cintas::Azul2)
+                        }
+                        "Marrón (todos)" => {
+                            // Comparamos contra las variantes exactas del Enum
+                            matches!(
+                                cinta_alumno,
+                                Cintas::Marron1 | Cintas::Marron2 | Cintas::Marron3
+                            )
+                        }
+                        // Para etiquetas individuales ("Blanca", "Azul 1"), usamos .label()
+                        // que es lo que el usuario ve y selecciona en el dropdown
+                        _ => cinta_alumno.label() == valor,
+                    };
+                    cinta && alumno.rallita == solo_rallita
+                })
+                .collect(),
+            _ => base,
+        }
     }
 }

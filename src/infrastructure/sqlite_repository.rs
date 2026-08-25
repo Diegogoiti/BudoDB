@@ -8,9 +8,9 @@
 
 use crate::application::ports::{
     AbonoRepository, AlumnoRepository, ConfiguracionAppRepository, DeudaRepository,
-    ErrorRepositorio, Logger, PagoRepository, RepresentanteRepository,
+    ErrorRepositorio, HistorialPagoRepository, Logger, PagoRepository, RepresentanteRepository,
 };
-use crate::domain::{Abono, Alumno, Deuda, Pago, Representante};
+use crate::domain::{Abono, Alumno, Deuda, HistorialPago, Pago, Representante};
 use rusqlite::{params, params_from_iter, OptionalExtension, ToSql};
 use std::collections::HashSet;
 use std::path::Path;
@@ -68,10 +68,10 @@ impl SqliteRepositorio {
             nombre TEXT NOT NULL,
             fecha_de_nacimiento TEXT NOT NULL,
             rango INTEGER NOT NULL,
-            representante_id INTEGER,
+            representante TEXT NOT NULL DEFAULT '',
+            telefono_representante TEXT NOT NULL DEFAULT '',
             rallita BOOLEAN NOT NULL DEFAULT 0,
-            eliminado BOOLEAN NOT NULL DEFAULT 0,
-            FOREIGN KEY (representante_id) REFERENCES representantes(id)
+            eliminado BOOLEAN NOT NULL DEFAULT 0
         )",
             [],
         )?;
@@ -125,6 +125,20 @@ impl SqliteRepositorio {
             observacion TEXT NOT NULL DEFAULT '',
             eliminado BOOLEAN NOT NULL DEFAULT 0,
             FOREIGN KEY (deuda_id) REFERENCES deudas(id)
+        )",
+            [],
+        )?;
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS historial_pagos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            representante_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            monto REAL NOT NULL DEFAULT 0,
+            periodo TEXT NOT NULL,
+            fecha TEXT NOT NULL,
+            observacion TEXT NOT NULL DEFAULT '',
+            eliminado BOOLEAN NOT NULL DEFAULT 0,
+            FOREIGN KEY (representante_id) REFERENCES representantes(id)
         )",
             [],
         )?;
@@ -233,7 +247,7 @@ impl SqliteRepositorio {
             nombre: row.get::<_, String>(1)?,
             fecha_de_nacimiento: row.get::<_, String>(2)?,
             rango: row.get(3)?,
-            representante_id: row.get::<_, Option<usize>>(4)?.unwrap_or(0),
+            representante_id: row.get(4)?,
             rallita: row.get::<_, bool>(5)?,
         })
     }
@@ -653,5 +667,62 @@ impl AbonoRepository for SqliteRepositorio {
 
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
         self.borrar_logicamente("abonos", ids, "abonos")
+    }
+}
+
+// Helpers de mapeo adicionales
+impl SqliteRepositorio {
+    fn mapear_historial_registro(row: &rusqlite::Row) -> rusqlite::Result<HistorialPago> {
+        Ok(HistorialPago {
+            id: row.get(0)?,
+            representante_id: row.get(1)?,
+            tipo: row.get(2)?,
+            monto: row.get(3)?,
+            periodo: row.get(4)?,
+            fecha: row.get(5)?,
+            observacion: row.get(6)?,
+        })
+    }
+    fn mapear_historial(iter: Result<impl Iterator<Item = rusqlite::Result<HistorialPago>>, rusqlite::Error>) -> Result<Vec<HistorialPago>, ErrorRepositorio> {
+        let mut registros = Vec::new();
+        for fila in iter.map_err(error_consulta)? { registros.push(fila.map_err(error_consulta)?); }
+        Ok(registros)
+    }
+}
+
+
+impl HistorialPagoRepository for SqliteRepositorio {
+    fn save(&self, registro: &HistorialPago) -> Result<(), ErrorRepositorio> {
+        let connection = self.lock();
+        connection.execute(
+            "INSERT INTO historial_pagos (representante_id, tipo, monto, periodo, fecha, observacion) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![registro.representante_id, registro.tipo, registro.monto, registro.periodo, registro.fecha, registro.observacion],
+        ).map_err(error_consulta)?;
+        self.logger.debug("Historial de pago guardado");
+        Ok(())
+    }
+    fn fetch_por_representante(&self, representante_id: usize) -> Result<Vec<HistorialPago>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection.prepare(
+            "SELECT id, representante_id, tipo, monto, periodo, fecha, observacion FROM historial_pagos WHERE representante_id = ?1 AND eliminado = 0",
+        ).map_err(error_consulta)?;
+        Self::mapear_historial(stmt.query_map(params![representante_id], Self::mapear_historial_registro))
+    }
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<HistorialPago>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection.prepare(
+            "SELECT id, representante_id, tipo, monto, periodo, fecha, observacion FROM historial_pagos WHERE periodo = ?1 AND eliminado = 0",
+        ).map_err(error_consulta)?;
+        Self::mapear_historial(stmt.query_map(params![periodo], Self::mapear_historial_registro))
+    }
+    fn fetch_all(&self) -> Result<Vec<HistorialPago>, ErrorRepositorio> {
+        let connection = self.lock();
+        let mut stmt = connection.prepare(
+            "SELECT id, representante_id, tipo, monto, periodo, fecha, observacion FROM historial_pagos WHERE eliminado = 0",
+        ).map_err(error_consulta)?;
+        Self::mapear_historial(stmt.query_map([], Self::mapear_historial_registro))
+    }
+    fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        self.borrar_logicamente("historial_pagos", ids, "historial de pagos")
     }
 }

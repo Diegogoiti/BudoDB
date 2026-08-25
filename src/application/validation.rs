@@ -1,7 +1,5 @@
 //! ÚNICA fuente de verdad para validaciones de formato/entrada (regla 6).
 //! Las reglas de negocio viven en `domain`; aquí solo el formato de entrada.
-//! La presentación reutiliza estas mismas funciones para pintar feedback
-//! en vivo, así la regla nunca se duplica.
 
 use super::dto::{DatosAbono, DatosAlumno, DatosPago, DatosRepresentante};
 use super::error::ErrorAplicacion;
@@ -19,7 +17,6 @@ pub fn es_fecha_valida_form(fecha: &str) -> bool {
 }
 
 /// El contacto no puede estar vacío y respeta el largo mínimo histórico (12).
-/// Hoy lo usa el FORMULARIO DE REPRESENTANTE (el teléfono es suyo).
 pub fn contacto_valido(numero: &str) -> bool {
     !(numero.is_empty() || numero.len() < 12)
 }
@@ -29,8 +26,7 @@ pub fn nombre_valido(nombre: &str) -> bool {
     !nombre.is_empty()
 }
 
-/// Un alumno debe apuntar a un representante existente: el ID 0 es
-/// "sin asignar" y solo se tolera en registros históricos ya migrados.
+/// Un representante debe apuntar a un ID existente (> 0): usado por pagos y alumnos.
 pub fn representante_asignado(representante_id: usize) -> bool {
     representante_id > 0
 }
@@ -57,7 +53,6 @@ pub fn es_periodo_valido(periodo: &str) -> bool {
 }
 
 /// Validación completa antes de persistir un alumno.
-/// Devuelve el primer error de validación encontrado, si lo hay.
 pub fn validar_datos_alumno(datos: &DatosAlumno) -> Result<(), ErrorAplicacion> {
     if !nombre_valido(&datos.nombre) {
         return Err(ErrorAplicacion::Validacion(
@@ -71,7 +66,7 @@ pub fn validar_datos_alumno(datos: &DatosAlumno) -> Result<(), ErrorAplicacion> 
     }
     if !representante_asignado(datos.representante_id) {
         return Err(ErrorAplicacion::Validacion(
-            "Debe seleccionar un representante.".to_string(),
+            "El alumno debe tener un representante asignado.".to_string(),
         ));
     }
     Ok(())
@@ -167,7 +162,7 @@ mod pruebas {
         assert!(!nombre_valido(""));
         assert!(nombre_valido("Juan"));
         assert!(!representante_asignado(0));
-        assert!(representante_asignado(3));
+        assert!(representante_asignado(1));
     }
 
     #[test]
@@ -195,7 +190,7 @@ mod pruebas {
             nombre: "Juan".to_string(),
             fecha_de_nacimiento: "2010-01-15".to_string(),
             rango: 6,
-            representante_id: 3,
+            representante_id: 1,
             rallita: false,
         };
         assert!(validar_datos_alumno(&datos).is_ok());
@@ -222,7 +217,7 @@ mod pruebas {
             nombre: "Juan".to_string(),
             fecha_de_nacimiento: "31/12/2010".to_string(),
             rango: 6,
-            representante_id: 3,
+            representante_id: 1,
             rallita: false,
         };
 
@@ -250,7 +245,7 @@ mod pruebas {
         };
         match validar_datos_pago(&pago) {
             Err(ErrorAplicacion::Validacion(_)) => {}
-            otro => panic!("se esperaba error de validación, obtuve {otro:?}"),
+            otro => panic!("se esperaba error de validacion, obtuve {otro:?}"),
         }
     }
 }

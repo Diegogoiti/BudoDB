@@ -10,30 +10,7 @@ pub fn Sidebar() -> Element {
                     h1 { class: "text-2xl font-bold text-white", "BudoDB" }
                 }
                 div { class: "flex-1 px-4 py-6 space-y-2",
-                    SidebarItem { to: Route::Home {}, icon: "📋", label: "Consulta" }
-                    SidebarItem { to: Route::Buscar {}, icon: "🔍", label: "Buscar" }
-                    SidebarItem {
-                        to: Route::Filtrar {},
-                        icon: "📊",
-                        label: "Filtrar",
-                    }
-                    hr { class: "my-6 border-gray-800" }
-                    SidebarItem {
-                        to: Route::Agregar {},
-                        icon: "➕",
-                        label: "Agregar",
-                    }
-                    SidebarItem {
-                        to: Route::Editar {},
-                        icon: "✏️",
-                        label: "Editar",
-                    }
-                    SidebarItem {
-                        to: Route::Eliminar {},
-                        icon: "🗑️",
-                        label: "Eliminar",
-                    }
-                    hr { class: "my-6 border-gray-800" }
+                    SidebarItem { to: Route::Alumnos {}, icon: "🥋", label: "Alumnos" }
                     SidebarItem {
                         to: Route::Pagos {},
                         icon: "💳",

@@ -10,17 +10,7 @@ pub const CSS: &str = include_str!("../../assets/tailwind.css");
 pub enum Route {
     #[layout(Sidebar)]
     #[route("/")]
-    Home {},
-    #[route("/buscar")]
-    Buscar {},
-    #[route("/filtrar")]
-    Filtrar {},
-    #[route("/agregar")]
-    Agregar {},
-    #[route("/editar")]
-    Editar {},
-    #[route("/eliminar")]
-    Eliminar {},
+    Alumnos {},
     #[route("/pagos")]
     Pagos {},
     #[route("/ajustes")]

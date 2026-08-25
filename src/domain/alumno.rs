@@ -9,23 +9,19 @@ use std::fmt;
 /// Formato canónico de fecha en TODO el sistema: única fuente de verdad.
 pub const FORMATO_FECHA: &str = "%Y-%m-%d";
 
-///modelo que maneja los datos delos alumnos para tratarlos como instancias independientes
-/// de manera mas organizada y clara, contiene metodos como cinta, rango_str o edad que son setters,
-/// calculan los valores a partir de las variables  y los retornan
+/// Modelo que maneja los datos de los alumnos para tratarlos como
+/// instancias independientes de manera más organizada y clara.
 ///
-/// El alumno ya NO guarda el nombre del representante: lo referencia por su
-/// ID (`representante_id`). Los datos de contacto viven en la entidad
-/// `Representante`; un mismo representante puede tener varios alumnos.
-/// El ID 0 significa "sin representante asignado" (solo ocurre en registros
-/// históricos migrados).
+/// El alumno se relaciona con su representante mediante `representante_id`
+/// (FK hacia la tabla `representantes`). El nombre y teléfono del
+/// representante se resuelven en la capa de presentación (AlumnoVista).
 #[derive(PartialEq, Clone, Debug)]
 pub struct Alumno {
     pub id: usize,
     pub nombre: String,
     pub rango: i32,
-
     pub fecha_de_nacimiento: String,
-    /// FK lógica hacia `Representante.id`. 0 = sin asignar.
+    /// FK hacia el representante (adulto responsable) que paga la mensualidad.
     pub representante_id: usize,
     pub rallita: bool,
 }
@@ -90,9 +86,6 @@ impl Alumno {
 }
 
 impl fmt::Display for Alumno {
-    // Única excepción de reloj en el dominio: este formato tipo ficha no se usa
-    // desde la interfaz hoy; se conserva para paridad total de comportamiento.
-    // El nombre del representante no vive aquí: solo su ID (FK).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -104,7 +97,7 @@ Fecha de Nac.:      {fecha_nac}
 Edad:               {edad} años
 Grado (Kyu):        {rango}
 Cinta/Nivel:        {cinta}
-Representante ID:   {representante_id}
+Representante ID:   {rep_id}
 Con Rallita:        {rallita}
 ========================="#,
             id = self.id,
@@ -113,7 +106,7 @@ Con Rallita:        {rallita}
             edad = self.edad(Local::now().date_naive()),
             rango = self.rango,
             cinta = self.cinta(),
-            representante_id = self.representante_id,
+            rep_id = self.representante_id,
             rallita = if self.rallita { "Sí" } else { "No" }
         )
     }
@@ -130,7 +123,7 @@ mod pruebas {
             nombre: "Test".to_string(),
             rango,
             fecha_de_nacimiento: "2010-01-15".to_string(),
-            representante_id: 3,
+            representante_id: 1,
             rallita,
         }
     }
@@ -144,16 +137,14 @@ mod pruebas {
 
     #[test]
     fn cinta_con_rallita_agrega_la_cinta_anterior() {
-        // Verde (6) con rallita muestra la anterior: Azul.
         assert_eq!(alumno(6, true).cinta(), "Verde ralla Azul");
-        // Blanca (10) no tiene anterior: saturating_sub mantiene 10.
         assert_eq!(alumno(10, true).cinta(), "Blanca ralla Celeste");
     }
 
     #[test]
     fn edad_respeta_si_el_cumpleanos_ya_paso() {
         let hoy = NaiveDate::from_ymd_opt(2026, 8, 24).expect("fecha fija de prueba");
-        assert_eq!(alumno(6, false).edad(hoy), "16 años"); // cumplió el 15/01
+        assert_eq!(alumno(6, false).edad(hoy), "16 años");
     }
 
     #[test]

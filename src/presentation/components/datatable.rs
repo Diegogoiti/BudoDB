@@ -1,5 +1,4 @@
 use crate::application::dto::AlumnoVista;
-use crate::presentation::app::Route;
 use crate::presentation::my_app;
 use chrono::Local;
 use dioxus::prelude::*;
@@ -36,9 +35,9 @@ pub fn DataTable(
     alumnos_lista: Signal<Vec<AlumnoVista>>,
     estado: Signal<my_app::MyApp>,
     aplicar_color_seleccion: bool,
+    on_doble_click: EventHandler<()>,
 ) -> Element {
     let alumnos = alumnos_lista.read().clone();
-    let nav = use_navigator();
     let hoy = Local::now().date_naive();
     let mut scroll_y = use_signal(|| 0.0f64);
 
@@ -133,7 +132,7 @@ pub fn DataTable(
                             if !estado.read().seleccionados.contains(&vista.alumno.id) {
                                 estado.write().toggle_seleccion(vista.alumno.id);
                             }
-                            nav.push(Route::Editar {});
+                            on_doble_click.call(());
                             },
                             td { class: "px-4 py-3",
                                 input {
