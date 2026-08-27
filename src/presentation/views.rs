@@ -498,18 +498,22 @@ fn fmt_monto(v: f64) -> String {
 /// (etiqueta, clases del badge) según el estado de la deuda.
 fn badge_estado(estado: &EstadoDeuda) -> (&'static str, &'static str) {
     match estado {
-        EstadoDeuda::Pagado => ("Pagado", "bg-emerald-900 text-emerald-300"),
+        EstadoDeuda::Pagada => ("Pagado", "bg-emerald-900 text-emerald-300"),
         EstadoDeuda::Parcial => ("Parcial", "bg-amber-900 text-amber-300"),
         EstadoDeuda::Pendiente => ("Pendiente", "bg-red-900 text-red-300"),
+        EstadoDeuda::Anticipada => ("Anticipada", "bg-blue-900 text-blue-300"),
+        EstadoDeuda::Anulada => ("Anulada", "bg-gray-800 text-gray-400"),
     }
 }
 
 /// Color de la barra de progreso según el estado.
 fn clase_barra(estado: &EstadoDeuda) -> &'static str {
     match estado {
-        EstadoDeuda::Pagado => "bg-emerald-500",
+        EstadoDeuda::Pagada => "bg-emerald-500",
         EstadoDeuda::Parcial => "bg-amber-500",
         EstadoDeuda::Pendiente => "bg-red-500",
+        EstadoDeuda::Anticipada => "bg-blue-500",
+        EstadoDeuda::Anulada => "bg-gray-500",
     }
 }
 
@@ -551,7 +555,7 @@ pub fn Pagos() -> Element {
 
     let deudas = estado.read().deudas.clone();
     let representantes = estado.read().representantes.clone();
-    let hay_pendientes = deudas.iter().any(|v| v.estado != EstadoDeuda::Pagado);
+    let hay_pendientes = deudas.iter().any(|v| v.estado != EstadoDeuda::Pagada);
 
     let rep_formulario_ok =
         nombre_valido(&rep_nombre.read()) && contacto_valido(&rep_contacto.read());
@@ -577,7 +581,7 @@ pub fn Pagos() -> Element {
         "Sin deudas aún".to_string()
     };
     let clase_avance = if total_deudas > 0.0 && pendientes == 0 {
-        clase_barra(&EstadoDeuda::Pagado)
+        clase_barra(&EstadoDeuda::Pagada)
     } else if total_deudas > 0.0 && pagados == 0 {
         clase_barra(&EstadoDeuda::Pendiente)
     } else {
@@ -667,8 +671,8 @@ pub fn Pagos() -> Element {
                         title: if hay_pendientes { "Registrar un abono" } else { "Todas las deudas están saldadas" },
                         onclick: move |_| {
                             // Preselecciona la primera deuda con saldo pendiente.
-                            if let Some(v) = estado.read().deudas.iter().find(|v| v.estado != EstadoDeuda::Pagado) {
-                                abrir_modal(v.deuda.id, v.saldo);
+                            if let Some(v) = estado.read().deudas.iter().find(|v| v.estado != EstadoDeuda::Pagada) {
+                                abrir_modal(v.deuda.id, v.deuda.saldo());
                             }
                         },
                         "💵 Registrar abono"
@@ -725,15 +729,15 @@ pub fn Pagos() -> Element {
                         }
                         {(deudas.iter()).map(|vista| {
                             let id_deuda = vista.deuda.id;
-                            let saldo_texto = fmt_monto(vista.saldo);
-                            let pct = if vista.deuda.monto > 0.0 {
-                                (vista.total_abonado / vista.deuda.monto * 100.0).min(100.0)
+                            let saldo_texto = fmt_monto(vista.deuda.saldo());
+                            let pct = if vista.deuda.monto_total > 0.0 {
+                                (vista.deuda.total_abonado() / vista.deuda.monto_total * 100.0).min(100.0)
                             } else {
                                 0.0
                             };
                             let (etiqueta, clases) = badge_estado(&vista.estado);
-                            let abrible = vista.estado != EstadoDeuda::Pagado;
-                            let saldo_fila = vista.saldo;
+                            let abrible = vista.estado != EstadoDeuda::Pagada;
+                            let saldo_fila = vista.deuda.saldo();
                             rsx! {
                             tr {
                                 key: "{id_deuda}",
@@ -748,10 +752,10 @@ pub fn Pagos() -> Element {
                                     p { class: "text-[11px] text-gray-500 font-mono", "{vista.telefono_representante}" }
                                 }
                                 td { class: "px-4 py-2.5 text-right font-mono text-gray-300",
-                                    "{fmt_monto(vista.deuda.monto)}"
+                                    "{fmt_monto(vista.deuda.monto_total)}"
                                 }
                                 td { class: "px-4 py-2.5 text-right font-mono text-emerald-400",
-                                    "{fmt_monto(vista.total_abonado)}"
+                                    "{fmt_monto(vista.deuda.total_abonado())}"
                                 }
                                 td { class: "px-4 py-2.5",
                                     div { class: "h-2 w-full bg-gray-700 rounded-full overflow-hidden",
@@ -888,7 +892,7 @@ pub fn Pagos() -> Element {
                             if let Some(v) = &deuda_elegida {
                                 span { class: "text-xs text-gray-500",
                                     "Saldo: "
-                                    span { class: "text-amber-400 font-bold", "{fmt_monto(v.saldo)}" }
+                                    span { class: "text-amber-400 font-bold", "{fmt_monto(v.deuda.saldo())}" }
                                 }
                             }
                         }
@@ -900,18 +904,18 @@ pub fn Pagos() -> Element {
                                     abono_deuda_id.set(id);
                                     // Autocompleta el monto con el saldo restante.
                                     if let Some(v) = estado.read().deudas.iter().find(|d| d.deuda.id == id) {
-                                        abono_monto.set(fmt_monto(v.saldo));
+                                        abono_monto.set(fmt_monto(v.deuda.saldo()));
                                     }
                                     abono_msg.set((String::new(), false));
                                 }
                             },
                             option { class: "bg-gray-900", value: "0", "-- Seleccione --" }
-                            {estado.read().deudas.iter().filter(|v| v.estado != EstadoDeuda::Pagado).map(|v| rsx! {
+                            {estado.read().deudas.iter().filter(|v| v.estado != EstadoDeuda::Pagada).map(|v| rsx! {
                                 option {
                                     key: "{v.deuda.id}",
                                     class: "bg-gray-900", value: "{v.deuda.id}",
                                     selected: *abono_deuda_id.read() == v.deuda.id,
-                                    "{v.nombre_representante} — saldo {fmt_monto(v.saldo)}"
+                                    "{v.nombre_representante} — saldo {fmt_monto(v.deuda.saldo())}"
                                 }
                             })}
                         }
@@ -978,8 +982,8 @@ pub fn Pagos() -> Element {
                                     return;
                                 }
                                 if let Some(v) = estado.read().deudas.iter().find(|d| d.deuda.id == deuda_id) {
-                                    if monto > v.saldo + 0.009 {
-                                        abono_msg.set((format!("El monto excede el saldo ({saldo}).", saldo = fmt_monto(v.saldo)), true));
+                                    if monto > v.deuda.saldo() + 0.009 {
+                                        abono_msg.set((format!("El monto excede el saldo ({saldo}).", saldo = fmt_monto(v.deuda.saldo())), true));
                                         return;
                                     }
                                 }

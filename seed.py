@@ -45,9 +45,12 @@ CREATE TABLE pagos (
 CREATE TABLE deudas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     representante_id INTEGER NOT NULL,
-    monto REAL NOT NULL,
+    monto_total REAL NOT NULL,
+    monto_pendiente REAL NOT NULL,
     periodo TEXT NOT NULL,
-    fecha TEXT NOT NULL,
+    fecha_vencimiento TEXT NOT NULL,
+    estado_id INTEGER NOT NULL DEFAULT 1,
+    alumno_id INTEGER,
     eliminado BOOLEAN NOT NULL DEFAULT 0,
     FOREIGN KEY (representante_id) REFERENCES representantes(id)
 );
@@ -122,6 +125,13 @@ for nombre, fecha, rango, rep_id, rallita in alumnos_data:
         (nombre, fecha, rango, rep_id, rallita)
     )
 
+# Seed deudas para agosto 2026 (representantes activos: 1-4)
+for rep_id in range(1, 5):
+    conn.execute(
+        "INSERT INTO deudas (representante_id, monto_total, monto_pendiente, periodo, fecha_vencimiento, estado_id) VALUES (?, 1500, 1500, '2026-08', '2026-08-10', 1)",
+        (rep_id,)
+    )
+
 # Set mensualidad default
 conn.execute("INSERT OR REPLACE INTO ajustes (clave, valor) VALUES ('monto_mensualidad', '1500')")
 
@@ -131,6 +141,7 @@ conn.close()
 print(f"Database seeded at: {DB_PATH}")
 print(f"  - {len(representantes)} representantes")
 print(f"  - {len(alumnos_data)} alumnos")
+print(f"  - 4 deudas agosto 2026")
 print(f"  - 1 ajuste (mensualidad: 1500)")
 print()
 print("Run 'cargo run' to start the application.")

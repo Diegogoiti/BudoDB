@@ -1,38 +1,30 @@
-//! Casos de uso de deudas mensuales: creación, listado y cálculo de saldos.
+//! Casos de uso de deudas mensuales con el nuevo esquema.
 //!
-//! Una deuda representa la obligación mensual de un representante. Se crea
-//! automáticamente con el monto configurado en Ajustes y se va saldando
-//! mediante abonos.
+//! Las deudas ahora tienen `monto_pendiente` y `estado_id` persistidos,
+//! en vez de calcularlos.derivan de abonos.
 
 use super::dto::DeudaVista;
 use super::error::ErrorAplicacion;
-use super::ports::{AbonoRepository, DeudaRepository, Logger};
-use crate::domain::{Deuda, Representante};
-use std::collections::HashSet;
+use super::ports::{DeudaRepository, Logger};
+use crate::domain::{Deuda, EstadoDeuda, Representante};
 use std::sync::Arc;
 
 pub struct ServicioDeudas {
     repo_deudas: Arc<dyn DeudaRepository>,
-    repo_abonos: Arc<dyn AbonoRepository>,
     logger: Arc<dyn Logger>,
 }
 
 impl ServicioDeudas {
     pub fn nuevo(
         repo_deudas: Arc<dyn DeudaRepository>,
-        repo_abonos: Arc<dyn AbonoRepository>,
+        _repo_abonos: Arc<dyn crate::application::ports::AbonoRepository>,
         logger: Arc<dyn Logger>,
     ) -> Self {
-        Self {
-            repo_deudas,
-            repo_abonos,
-            logger,
-        }
+        Self { repo_deudas, logger }
     }
 
     /// Crea deudas mensuales para todos los representantes activos que aún
-    /// no tienen una en el periodo dado. Devuelve la cantidad de deudas
-    /// nuevas creadas.
+    /// no tienen una en el periodo dado. Devuelve la cantidad creada.
     pub fn crear_deudas_del_mes(
         &self,
         periodo: &str,
@@ -46,9 +38,8 @@ impl ServicioDeudas {
             ));
         }
 
-        // Deudas existentes en este periodo (para no duplicar).
         let existentes = self.repo_deudas.fetch_por_periodo(periodo)?;
-        let ya_tienen: HashSet<usize> =
+        let ya_tienen: std::collections::HashSet<usize> =
             existentes.iter().map(|d| d.representante_id).collect();
 
         let mut creadas = 0;
@@ -59,9 +50,12 @@ impl ServicioDeudas {
             let deuda = Deuda {
                 id: 0,
                 representante_id: rep.id,
-                monto,
+                monto_total: monto,
+                monto_pendiente: monto,
                 periodo: periodo.to_string(),
-                fecha: fecha.to_string(),
+                fecha_vencimiento: fecha.to_string(),
+                estado_id: EstadoDeuda::Pendiente.id(),
+                alumno_id: None,
             };
             self.repo_deudas.save(&deuda)?;
             creadas += 1;
@@ -75,25 +69,17 @@ impl ServicioDeudas {
         Ok(creadas)
     }
 
-    /// Lista todas las deudas de un periodo con sus saldos y estados ya
-    /// calculados, ordenadas por nombre de representante.
+    /// Lista todas las deudas de un periodo con datos resueltos.
     pub fn listar_del_periodo(
         &self,
         periodo: &str,
         representantes: &[Representante],
     ) -> Result<Vec<DeudaVista>, ErrorAplicacion> {
         let deudas = self.repo_deudas.fetch_por_periodo(periodo)?;
-        let todos_abonos = self.repo_abonos.fetch_por_periodo(periodo)?;
 
-        let mut vistas: Vec<DeudaVista> = deudas
+        let vistas: Vec<DeudaVista> = deudas
             .iter()
             .map(|deuda| {
-                let total_abonado: f64 = todos_abonos
-                    .iter()
-                    .filter(|a| a.deuda_id == deuda.id)
-                    .map(|a| a.monto)
-                    .sum();
-
                 let representante = representantes
                     .iter()
                     .find(|r| r.id == deuda.representante_id);
@@ -106,19 +92,16 @@ impl ServicioDeudas {
                     telefono_representante: representante
                         .map(|r| r.numero_contacto.clone())
                         .unwrap_or_default(),
-                    saldo: deuda.saldo(total_abonado),
-                    estado: deuda.estado(total_abonado),
-                    total_abonado,
+                    estado: deuda.estado(),
                 }
             })
             .collect();
 
-        vistas.sort_by(|a, b| a.nombre_representante.cmp(&b.nombre_representante));
         Ok(vistas)
     }
 
-    /// Elimina (borrado lógico) una deuda por ID.
-    pub fn eliminar(&self, ids: HashSet<usize>) -> Result<(), ErrorAplicacion> {
+    /// Elimina (borrado lógico) deudas por IDs.
+    pub fn eliminar(&self, ids: std::collections::HashSet<usize>) -> Result<(), ErrorAplicacion> {
         if ids.is_empty() {
             return Ok(());
         }
@@ -132,7 +115,7 @@ impl ServicioDeudas {
 mod pruebas {
     use super::*;
     use crate::application::ports::ErrorRepositorio;
-    use crate::domain::{Abono, EstadoDeuda};
+    use std::collections::HashSet;
     use std::sync::Mutex;
 
     struct RepoDeudasMock {
@@ -164,45 +147,29 @@ mod pruebas {
                 .cloned()
                 .collect())
         }
+        fn fetch_cobrables_por_representante(&self, _: usize) -> Result<Vec<Deuda>, ErrorRepositorio> {
+            Ok(Vec::new())
+        }
+        fn fetch_todos_periodos_por_representante(&self, _: usize) -> Result<Vec<String>, ErrorRepositorio> {
+            Ok(Vec::new())
+        }
         fn fetch_all(&self) -> Result<Vec<Deuda>, ErrorRepositorio> {
             Ok(self.deudas.lock().unwrap().clone())
         }
+        fn update_estado(&self, _: usize, _: f64, _: i32) -> Result<(), ErrorRepositorio> {
+            Ok(())
+        }
         fn delete(&self, _: HashSet<usize>) -> Result<(), ErrorRepositorio> {
             Ok(())
         }
     }
 
-    struct RepoAbonosMock {
-        abonos: Mutex<Vec<Abono>>,
-    }
-
-    impl RepoAbonosMock {
-        fn nuevo() -> Self {
-            Self {
-                abonos: Mutex::new(Vec::new()),
-            }
-        }
-
-        fn con_abonos(abonos: Vec<Abono>) -> Self {
-            let repo = Self::nuevo();
-            *repo.abonos.lock().unwrap() = abonos;
-            repo
-        }
-    }
-
-    impl AbonoRepository for RepoAbonosMock {
-        fn save(&self, _: &Abono) -> Result<(), ErrorRepositorio> {
-            Ok(())
-        }
-        fn fetch_por_deuda(&self, _: usize) -> Result<Vec<Abono>, ErrorRepositorio> {
-            Ok(Vec::new())
-        }
-        fn fetch_por_periodo(&self, _: &str) -> Result<Vec<Abono>, ErrorRepositorio> {
-            Ok(self.abonos.lock().unwrap().clone())
-        }
-        fn delete(&self, _: HashSet<usize>) -> Result<(), ErrorRepositorio> {
-            Ok(())
-        }
+    struct RepoAbonosMock;
+    impl crate::application::ports::AbonoRepository for RepoAbonosMock {
+        fn save(&self, _: &crate::domain::Abono) -> Result<(), ErrorRepositorio> { Ok(()) }
+        fn fetch_por_deuda(&self, _: usize) -> Result<Vec<crate::domain::Abono>, ErrorRepositorio> { Ok(Vec::new()) }
+        fn fetch_por_periodo(&self, _: &str) -> Result<Vec<crate::domain::Abono>, ErrorRepositorio> { Ok(Vec::new()) }
+        fn delete(&self, _: HashSet<usize>) -> Result<(), ErrorRepositorio> { Ok(()) }
     }
 
     struct LoggerMock;
@@ -212,13 +179,9 @@ mod pruebas {
         fn error(&self, _: &str) {}
     }
 
-    fn servicio(
-        deudas: Vec<Deuda>,
-        abonos: Vec<Abono>,
-    ) -> ServicioDeudas {
+    fn servicio(deudas: Vec<Deuda>) -> ServicioDeudas {
         let repo_d = Arc::new(RepoDeudasMock::con_deudas(deudas));
-        let repo_a = Arc::new(RepoAbonosMock::con_abonos(abonos));
-        ServicioDeudas::nuevo(repo_d, repo_a, Arc::new(LoggerMock))
+        ServicioDeudas::nuevo(repo_d, Arc::new(RepoAbonosMock), Arc::new(LoggerMock))
     }
 
     fn rep(id: usize, nombre: &str) -> Representante {
@@ -226,60 +189,28 @@ mod pruebas {
             id,
             nombre: nombre.to_string(),
             numero_contacto: "0412-0000000".to_string(),
+            estado_id: 1,
         }
     }
 
     #[test]
-    fn crear_deudas_del_mes_solo_para_quienes_no_tienen() {
-        let s = servicio(Vec::new(), Vec::new());
+    fn crear_deudas_solo_para_quienes_no_tienen() {
+        let s = servicio(Vec::new());
         let reps = vec![rep(1, "A"), rep(2, "B"), rep(3, "C")];
-
-        let creadas = s
-            .crear_deudas_del_mes("2026-08", 1500.0, "2026-08-01", &reps)
-            .unwrap();
+        let creadas = s.crear_deudas_del_mes("2026-08", 1500.0, "2026-08-01", &reps).unwrap();
         assert_eq!(creadas, 3);
     }
 
     #[test]
-    fn crear_deudas_no_duplica_quien_ya_tiene() {
+    fn crear_deudas_no_duplica() {
         let existente = Deuda {
-            id: 1,
-            representante_id: 1,
-            monto: 1500.0,
-            periodo: "2026-08".to_string(),
-            fecha: "2026-08-01".to_string(),
+            id: 1, representante_id: 1, monto_total: 1500.0, monto_pendiente: 1500.0,
+            periodo: "2026-08".to_string(), fecha_vencimiento: "2026-08-10".to_string(),
+            estado_id: 1, alumno_id: None,
         };
-        let s = servicio(vec![existente], Vec::new());
+        let s = servicio(vec![existente]);
         let reps = vec![rep(1, "A"), rep(2, "B")];
-
-        let creadas = s
-            .crear_deudas_del_mes("2026-08", 1500.0, "2026-08-01", &reps)
-            .unwrap();
-        assert_eq!(creadas, 1); // Solo B
-    }
-
-    #[test]
-    fn listar_del_periodo_calcula_saldo_y_estado() {
-        let deudas = vec![
-            Deuda { id: 1, representante_id: 1, monto: 1500.0, periodo: "2026-08".to_string(), fecha: "2026-08-01".to_string() },
-            Deuda { id: 2, representante_id: 2, monto: 1500.0, periodo: "2026-08".to_string(), fecha: "2026-08-01".to_string() },
-        ];
-        let abonos = vec![
-            Abono { id: 1, deuda_id: 1, monto: 1500.0, fecha: "2026-08-05".to_string(), observacion: String::new() },
-            Abono { id: 2, deuda_id: 2, monto: 500.0, fecha: "2026-08-10".to_string(), observacion: String::new() },
-        ];
-        let s = servicio(deudas, abonos);
-        let reps = vec![rep(1, "Ana"), rep(2, "Beto")];
-
-        let vistas = s.listar_del_periodo("2026-08", &reps).unwrap();
-        assert_eq!(vistas.len(), 2);
-
-        let ana = vistas.iter().find(|v| v.nombre_representante == "Ana").unwrap();
-        assert_eq!(ana.estado, EstadoDeuda::Pagado);
-        assert!((ana.saldo).abs() < f64::EPSILON);
-
-        let beto = vistas.iter().find(|v| v.nombre_representante == "Beto").unwrap();
-        assert_eq!(beto.estado, EstadoDeuda::Parcial);
-        assert!((beto.saldo - 1000.0).abs() < f64::EPSILON);
+        let creadas = s.crear_deudas_del_mes("2026-08", 1500.0, "2026-08-01", &reps).unwrap();
+        assert_eq!(creadas, 1);
     }
 }

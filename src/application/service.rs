@@ -21,14 +21,14 @@ impl ServicioAlumnos {
     }
     pub fn agregar(&self, datos: DatosAlumno) -> Result<(), ErrorAplicacion> {
         validar_datos_alumno(&datos)?;
-        let alumno = Alumno { id: 0, nombre: datos.nombre, fecha_de_nacimiento: datos.fecha_de_nacimiento, rango: datos.rango, representante_id: datos.representante_id, rallita: Alumno::aplica_rallita(datos.rango, datos.rallita) };
+        let alumno = Alumno { id: 0, nombre: datos.nombre, fecha_de_nacimiento: datos.fecha_de_nacimiento, rango: datos.rango, representante_id: datos.representante_id, rallita: Alumno::aplica_rallita(datos.rango, datos.rallita), estado_id: 1 };
         self.repositorio.save(&alumno)?;
         self.logger.debug("Alumno agregado");
         Ok(())
     }
     pub fn actualizar(&self, id: usize, datos: DatosAlumno) -> Result<(), ErrorAplicacion> {
         validar_datos_alumno(&datos)?;
-        let alumno = Alumno { id, nombre: datos.nombre, fecha_de_nacimiento: datos.fecha_de_nacimiento, rango: datos.rango, representante_id: datos.representante_id, rallita: datos.rallita };
+        let alumno = Alumno { id, nombre: datos.nombre, fecha_de_nacimiento: datos.fecha_de_nacimiento, rango: datos.rango, representante_id: datos.representante_id, rallita: datos.rallita, estado_id: 1 };
         self.repositorio.update(&alumno)?;
         self.logger.debug("Alumno actualizado");
         Ok(())

@@ -4,10 +4,9 @@
 //! - `Datos*`: entrada de formularios.
 //! - `*Vista`: lectura compuesta para pintar tablas (proyección).
 
-use crate::domain::{Alumno, Deuda, EstadoDeuda, HistorialPago, Pago};
+use crate::domain::{Alumno, AplicacionPago, Deuda, EstadoDeuda, EstadoPago, HistorialPago, MetodoPago, Pago};
 
-/// Entrada para crear o editar un alumno. El representante se vincula
-/// por ID (FK) — no se guardan strings directos en el alumno.
+/// Entrada para crear o editar un alumno.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatosAlumno {
     pub nombre: String,
@@ -24,21 +23,17 @@ pub struct DatosRepresentante {
     pub numero_contacto: String,
 }
 
-/// Entrada para registrar un pago de mensualidad.
+/// Entrada para registrar un pago (reemplaza al viejo DatosPago + DatosAbono).
+/// El motor FIFO determina automáticamente a qué deudas se aplica.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatosPago {
     pub representante_id: usize,
-    pub monto: f64,
-    /// Mes que se cancela, formato "YYYY-MM".
-    pub periodo: String,
-    /// Fecha de registro, formato "YYYY-MM-DD".
-    pub fecha: String,
-    pub observacion: String,
+    pub monto_recibido: f64,
+    pub metodo_id: i32,
+    pub fecha_pago: String,
 }
 
 /// Proyección de lectura para pintar la tabla de alumnos.
-/// Resuelve el nombre y teléfono del representante para que la UI
-/// no tenga que hacer joins manualmente.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AlumnoVista {
     pub alumno: Alumno,
@@ -46,54 +41,59 @@ pub struct AlumnoVista {
     pub telefono_representante: String,
 }
 
-/// Proyección de lectura de un pago con el nombre del representante
-/// resuelto para la tabla del panel administrativo.
-#[derive(Debug, Clone, PartialEq)]
-pub struct PagoVista {
-    pub pago: Pago,
-    pub nombre_representante: String,
-}
-
-/// Proyección de lectura de una deuda con todos los datos resueltos
-/// para la tabla principal del panel de pagos.
+/// Proyección de lectura de una deuda con todos los datos resueltos.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DeudaVista {
     pub deuda: Deuda,
     pub nombre_representante: String,
     pub telefono_representante: String,
-    /// Suma de todos los abonos registrados contra esta deuda.
-    pub total_abonado: f64,
-    /// saldo = deuda.monto - total_abonado (nunca negativo).
-    pub saldo: f64,
-    /// Estado derivado: Pagado / Parcial / Pendiente.
+    /// Estado tipado de la deuda.
     pub estado: EstadoDeuda,
 }
 
-/// Entrada para registrar un abono contra una deuda existente.
+/// Proyección de lectura de un pago con datos resueltos.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DatosAbono {
-    pub deuda_id: usize,
-    pub monto: f64,
-    /// Fecha de registro, formato "YYYY-MM-DD".
-    pub fecha: String,
-    pub observacion: String,
+pub struct PagoVista {
+    pub pago: Pago,
+    pub nombre_representante: String,
+    pub metodo: MetodoPago,
+    pub estado: EstadoPago,
+    /// Aplicaciones de este pago a deudas.
+    pub aplicaciones: Vec<AplicacionPagoVista>,
+}
+
+/// Proyección de lectura de una aplicación de pago.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AplicacionPagoVista {
+    pub aplicacion: AplicacionPago,
+    pub nombre_representante: String,
+    pub periodo_deuda: String,
 }
 
 /// Entrada para registrar un movimiento en el historial de pagos.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatosHistorialPago {
     pub representante_id: usize,
-    pub tipo: String,
+    pub tipo_id: i32,
     pub monto: f64,
     pub periodo: String,
     pub fecha: String,
     pub observacion: String,
 }
 
-/// Proyección de lectura de un registro del historial de pagos
-/// con el nombre del representante resuelto.
+/// Proyección de lectura de un registro del historial.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistorialPagoVista {
     pub historial: HistorialPago,
     pub nombre_representante: String,
+}
+
+
+/// Entrada para registrar un abono (LEGACY — mantenido para compatibilidad).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DatosAbono {
+    pub deuda_id: usize,
+    pub monto: f64,
+    pub fecha: String,
+    pub observacion: String,
 }

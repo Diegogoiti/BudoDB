@@ -24,6 +24,8 @@ pub struct Alumno {
     /// FK hacia el representante (adulto responsable) que paga la mensualidad.
     pub representante_id: usize,
     pub rallita: bool,
+    /// FK a cat_estados_alumno: 1=Activo, 2=Inactivo, 3=Suspendido, 4=Retirado.
+    pub estado_id: i32,
 }
 
 impl Alumno {
@@ -125,6 +127,7 @@ mod pruebas {
             fecha_de_nacimiento: "2010-01-15".to_string(),
             representante_id: 1,
             rallita,
+            estado_id: 1,
         }
     }
 

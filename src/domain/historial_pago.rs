@@ -1,5 +1,8 @@
-//! Entidad de negocio `HistorialPago`: registro del historial de pagos,
-//! deudas y abonos para auditoría y cálculos posteriores.
+//! Entidad de negocio `HistorialPago`: bitácora de auditoría de todos los
+//! movimientos financieros. Nunca se edita ni se elimina.
+//!
+//! Cada registro indica qué tipo de movimiento fue, a qué representante
+//! afecta, y en qué periodo/fecha ocurrió.
 //!
 //! CERO dependencias: ni UI, ni base de datos, ni frameworks (regla 1).
 
@@ -7,8 +10,8 @@
 pub struct HistorialPago {
     pub id: usize,
     pub representante_id: usize,
-    /// Tipo de movimiento: "deuda_creada", "abono", "pago", etc.
-    pub tipo: String,
+    /// FK a cat_tipos_historial: 1=DeudaCreada, 2=PagoRegistrado, etc.
+    pub tipo_id: i32,
     pub monto: f64,
     /// Periodo al que aplica, formato "YYYY-MM".
     pub periodo: String,

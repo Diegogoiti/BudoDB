@@ -34,6 +34,7 @@ impl ServicioRepresentantes {
             id: 0,
             nombre: datos.nombre,
             numero_contacto: datos.numero_contacto,
+            estado_id: 1,
         };
         self.repositorio.save(&representante)?;
         self.logger.debug("Representante agregado");
@@ -47,6 +48,7 @@ impl ServicioRepresentantes {
             id,
             nombre: datos.nombre,
             numero_contacto: datos.numero_contacto,
+            estado_id: 1,
         };
         self.repositorio.update(&representante)?;
         self.logger.debug("Representante actualizado");
@@ -129,6 +131,10 @@ mod pruebas {
             ServicioRepresentantes::nuevo(repo.clone(), Arc::new(LoggerMock)),
             repo,
         )
+    }
+
+    fn rep(id: usize, nombre: &str) -> Representante {
+        Representante { id, nombre: nombre.to_string(), numero_contacto: "0412-0000000".to_string(), estado_id: 1 }
     }
 
     fn datos_rep() -> DatosRepresentante {

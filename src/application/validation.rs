@@ -94,23 +94,20 @@ pub fn validar_datos_pago(datos: &DatosPago) -> Result<(), ErrorAplicacion> {
             "El pago debe estar asociado a un representante.".to_string(),
         ));
     }
-    if !monto_valido(datos.monto) {
+    if !monto_valido(datos.monto_recibido) {
         return Err(ErrorAplicacion::Validacion(
             "El monto debe ser un número positivo.".to_string(),
         ));
     }
-    if !es_periodo_valido(&datos.periodo) {
-        return Err(ErrorAplicacion::Validacion(
-            "El periodo debe tener formato AAAA-MM.".to_string(),
-        ));
-    }
-    if !es_fecha_valida(&datos.fecha) {
+    if !es_fecha_valida(&datos.fecha_pago) {
         return Err(ErrorAplicacion::Validacion(
             "La fecha de registro no es válida.".to_string(),
         ));
     }
     Ok(())
 }
+
+
 
 /// Validación completa antes de registrar un abono contra una deuda.
 pub fn validar_datos_abono(datos: &DatosAbono) -> Result<(), ErrorAplicacion> {
@@ -203,10 +200,9 @@ mod pruebas {
 
         let pago = DatosPago {
             representante_id: 3,
-            monto: 1500.0,
-            periodo: "2026-08".to_string(),
-            fecha: "2026-08-24".to_string(),
-            observacion: String::new(),
+            monto_recibido: 1500.0,
+            metodo_id: 1,
+            fecha_pago: "2026-08-24".to_string(),
         };
         assert!(validar_datos_pago(&pago).is_ok());
     }
@@ -238,10 +234,9 @@ mod pruebas {
     fn un_pago_con_monto_cero_se_rechaza() {
         let pago = DatosPago {
             representante_id: 1,
-            monto: 0.0,
-            periodo: "2026-08".to_string(),
-            fecha: "2026-08-24".to_string(),
-            observacion: String::new(),
+            monto_recibido: 0.0,
+            metodo_id: 1,
+            fecha_pago: "2026-08-24".to_string(),
         };
         match validar_datos_pago(&pago) {
             Err(ErrorAplicacion::Validacion(_)) => {}

@@ -1,7 +1,7 @@
 //! Puertos (interfaces) que la capa de aplicación exige al mundo exterior.
 //! Las implementaciones concretas viven en la capa `infrastructure`.
 
-use crate::domain::{Abono, Alumno, Deuda, HistorialPago, Pago, Representante};
+use crate::domain::{Alumno, AplicacionPago, Deuda, HistorialPago, Pago, Representante};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -57,7 +57,9 @@ pub trait RepresentanteRepository: Send + Sync {
 pub trait PagoRepository: Send + Sync {
     fn save(&self, pago: &Pago) -> Result<(), ErrorRepositorio>;
     fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Pago>, ErrorRepositorio>;
+    fn fetch_por_representante(&self, representante_id: usize) -> Result<Vec<Pago>, ErrorRepositorio>;
     fn fetch_all(&self) -> Result<Vec<Pago>, ErrorRepositorio>;
+    fn update_estado(&self, id: usize, estado_id: i32) -> Result<(), ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 
@@ -65,19 +67,30 @@ pub trait PagoRepository: Send + Sync {
 pub trait DeudaRepository: Send + Sync {
     fn save(&self, deuda: &Deuda) -> Result<(), ErrorRepositorio>;
     fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Deuda>, ErrorRepositorio>;
+    fn fetch_cobrables_por_representante(&self, representante_id: usize) -> Result<Vec<Deuda>, ErrorRepositorio>;
+    fn fetch_todos_periodos_por_representante(&self, representante_id: usize) -> Result<Vec<String>, ErrorRepositorio>;
     fn fetch_all(&self) -> Result<Vec<Deuda>, ErrorRepositorio>;
+    fn update_estado(&self, id: usize, monto_pendiente: f64, estado_id: i32) -> Result<(), ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 
-/// Puerto de persistencia de abonos (pagos parciales contra una deuda).
+/// Puerto de persistencia de aplicaciones de pago (tabla puente pagos ↔ deudas).
+pub trait AplicacionPagoRepository: Send + Sync {
+    fn save(&self, aplicacion: &AplicacionPago) -> Result<(), ErrorRepositorio>;
+    fn fetch_por_pago(&self, pago_id: usize) -> Result<Vec<AplicacionPago>, ErrorRepositorio>;
+    fn fetch_por_deuda(&self, deuda_id: usize) -> Result<Vec<AplicacionPago>, ErrorRepositorio>;
+    fn delete_por_pago(&self, pago_id: usize) -> Result<(), ErrorRepositorio>;
+}
+
+/// Puerto de persistencia de abonos (LEGACY — mantener para compatibilidad temporal).
 pub trait AbonoRepository: Send + Sync {
-    fn save(&self, abono: &Abono) -> Result<(), ErrorRepositorio>;
-    fn fetch_por_deuda(&self, deuda_id: usize) -> Result<Vec<Abono>, ErrorRepositorio>;
-    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Abono>, ErrorRepositorio>;
+    fn save(&self, abono: &crate::domain::Abono) -> Result<(), ErrorRepositorio>;
+    fn fetch_por_deuda(&self, deuda_id: usize) -> Result<Vec<crate::domain::Abono>, ErrorRepositorio>;
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<crate::domain::Abono>, ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 
-/// Puerto de persistencia del historial de pagos para auditoría y cálculos.
+/// Puerto de persistencia del historial de pagos para auditoría.
 pub trait HistorialPagoRepository: Send + Sync {
     fn save(&self, registro: &HistorialPago) -> Result<(), ErrorRepositorio>;
     fn fetch_por_representante(&self, representante_id: usize) -> Result<Vec<HistorialPago>, ErrorRepositorio>;
@@ -86,8 +99,7 @@ pub trait HistorialPagoRepository: Send + Sync {
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 
-/// Puerto de configuración externa: rutas y parámetros nunca hardcodeados
-/// en código (regla 8).
+/// Puerto de configuración externa: rutas y parámetros nunca hardcodeados.
 pub trait Configuracion: Send + Sync {
     fn ruta_base_de_datos(&self) -> String;
 }

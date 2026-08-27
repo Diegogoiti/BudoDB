@@ -21,7 +21,7 @@ impl ServicioHistorialPagos {
         let registro = HistorialPago {
             id: 0,
             representante_id: datos.representante_id,
-            tipo: datos.tipo,
+            tipo_id: datos.tipo_id,
             monto: datos.monto,
             periodo: datos.periodo,
             fecha: datos.fecha,

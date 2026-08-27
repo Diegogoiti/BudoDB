@@ -11,6 +11,8 @@ pub struct Representante {
     pub id: usize,
     pub nombre: String,
     pub numero_contacto: String,
+    /// FK a cat_estados_representante: 1=Activo, 2=Inactivo.
+    pub estado_id: i32,
 }
 
 #[cfg(test)]
@@ -23,6 +25,7 @@ mod pruebas {
             id: 1,
             nombre: "Pedro Pérez".to_string(),
             numero_contacto: "0412-0000000".to_string(),
+            estado_id: 1,
         };
         let b = a.clone();
         assert_eq!(a, b);

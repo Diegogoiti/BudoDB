@@ -227,7 +227,7 @@ impl MyApp {
     // ---------- Casos de uso de pagos ----------
 
     pub fn registrar_pago(&mut self, datos: DatosPago) -> Result<(), ErrorAplicacion> {
-        self.servicio_pagos.registrar(datos)?;
+        self.servicio_pagos.registrar_pago(datos)?;
         self.refrescar();
         Ok(())
     }
@@ -242,7 +242,7 @@ impl MyApp {
     /// Total recaudado en el periodo administrado. Suma sobre la caché:
     /// la vista solo pinta, el dato ya fue cargado por el caso de uso.
     pub fn total_del_mes(&self) -> f64 {
-        self.pagos.iter().map(|v| v.pago.monto).sum()
+        self.pagos.iter().map(|v| v.pago.monto_recibido).sum()
     }
 
     /// Etiqueta legible del periodo actual ("Agosto 2026") para el encabezado.
@@ -285,12 +285,12 @@ impl MyApp {
 
     /// Monto total de todas las deudas del periodo (monto × num deudas).
     pub fn total_deudas_periodo(&self) -> f64 {
-        self.deudas.iter().map(|v| v.deuda.monto).sum()
+        self.deudas.iter().map(|v| v.deuda.monto_total).sum()
     }
 
     /// Monto total abonado en el periodo.
     pub fn total_abonado_periodo(&self) -> f64 {
-        self.deudas.iter().map(|v| v.total_abonado).sum()
+        self.deudas.iter().map(|v| v.deuda.total_abonado()).sum()
     }
 
     /// Cantidad de representantes que fully pagaron.
@@ -298,7 +298,7 @@ impl MyApp {
         use crate::domain::EstadoDeuda;
         self.deudas
             .iter()
-            .filter(|v| v.estado == EstadoDeuda::Pagado)
+            .filter(|v| v.estado == EstadoDeuda::Pagada)
             .count()
     }
 

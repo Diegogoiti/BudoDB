@@ -1,5 +1,5 @@
 use crate::application::ports::{
-    AbonoRepository, AlumnoRepository, ConfiguracionAppRepository, Configuracion,
+    AbonoRepository, AlumnoRepository, AplicacionPagoRepository, ConfiguracionAppRepository, Configuracion,
     DeudaRepository, HistorialPagoRepository, Logger, PagoRepository, RepresentanteRepository,
 };
 use crate::application::service::ServicioAlumnos;
@@ -61,11 +61,12 @@ fn intentar_construir_estado() -> Result<MyApp, String> {
     let repo_ajustes: Arc<dyn ConfiguracionAppRepository> = sqlite.clone();
     let repo_deudas: Arc<dyn DeudaRepository> = sqlite.clone();
     let repo_abonos: Arc<dyn AbonoRepository> = sqlite.clone();
+    let repo_aplicaciones: Arc<dyn AplicacionPagoRepository> = sqlite.clone();
     let repo_historial: Arc<dyn HistorialPagoRepository> = sqlite;
 
     let servicio_alumnos = Arc::new(ServicioAlumnos::nuevo(repo_alumnos, logger.clone()));
     let servicio_representantes = Arc::new(ServicioRepresentantes::nuevo(repo_representantes, logger.clone()));
-    let servicio_pagos = Arc::new(ServicioPagos::nuevo(repo_pagos, logger.clone()));
+    let servicio_pagos = Arc::new(ServicioPagos::nuevo(repo_pagos, repo_aplicaciones, repo_deudas.clone(), logger.clone()));
     let servicio_ajustes = Arc::new(ServicioAjustes::nuevo(repo_ajustes, logger.clone()));
     let servicio_deudas = Arc::new(ServicioDeudas::nuevo(repo_deudas, repo_abonos.clone(), logger.clone()));
     let servicio_abonos = Arc::new(ServicioAbonos::nuevo(repo_abonos, logger.clone()));
