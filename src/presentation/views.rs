@@ -1,9 +1,9 @@
 //! se encarga de dibujar las vistas segun las rutas seleccionadas
 //! contiene las funciones con el codigo especifico de cada vista
 
-use crate::application::dto::{AlumnoVista, DatosAbono, DatosAlumno, DatosRepresentante};
+use crate::application::dto::{AlumnoVista, DatosAlumno, DatosPago, DatosRepresentante};
 use crate::application::validation::*;
-use crate::domain::EstadoDeuda;
+use crate::domain::{EstadoDeuda, EstadoPago, MetodoPago};
 use crate::presentation::components::datatable::DataTable;
 use crate::presentation::components::filter::Filter;
 use crate::presentation::components::form::Form;
@@ -23,20 +23,16 @@ enum ModalAlumno {
     RegistrarRepresentante,
 }
 
-/// Vista única de alumnos, al estilo del panel de administración de ejemplo:
-/// buscador y filtro arriba, tabla de datos al centro y las acciones
-/// (nuevo, editar, promover, eliminar) como botones que abren modales abajo.
+/// Vista única de alumnos.
 #[component]
 pub fn Alumnos() -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
     let mut modal_activo = use_signal(|| None::<ModalAlumno>);
 
-    // Búsqueda (columna + texto) y filtro (cinta/edad + rallita) encadenados.
     let mut busqueda = use_signal(|| (Columnas::Nombre, String::new()));
     let mut filtro = use_signal(|| (Columnas::Cinta, String::new(), false));
     let mut alumnos_filtrados = use_signal(|| estado.read().alumnos.clone());
 
-    // Reactivo: recalcula la lista al cambiar búsqueda, filtro o la caché.
     {
         let estado = estado.clone();
         use_effect(move || {
@@ -184,8 +180,11 @@ pub fn Alumnos() -> Element {
     }
 }
 
-/// Contenedor común de modales: overlay oscuro + tarjeta centrada con título
-/// y botón de cierre. Mismo patrón que el modal de abono del panel de Pagos.
+// ═══════════════════════════════════════════════════════════════
+// Modales de Alumnos
+// ═══════════════════════════════════════════════════════════════
+
+/// Contenedor común de modales.
 #[component]
 fn ModalBase(titulo: String, on_cerrar: EventHandler<()>, children: Element) -> Element {
     rsx! {
@@ -211,14 +210,12 @@ fn ModalBase(titulo: String, on_cerrar: EventHandler<()>, children: Element) -> 
     }
 }
 
-/// Modal de alta: reutiliza el formulario compartido de alumno.
 #[component]
 fn ModalNuevo(on_cerrar: EventHandler<()>) -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
-
     let mut nombre = use_signal(|| "".to_string());
     let mut fecha_nac = use_signal(|| "".to_string());
-    let mut rango = use_signal(|| 10i32); // Por defecto "Blanca" (valor 10)
+    let mut rango = use_signal(|| 10i32);
     let mut representante_id = use_signal(|| 0usize);
     let mut rallita = use_signal(|| false);
 
@@ -232,12 +229,8 @@ fn ModalNuevo(on_cerrar: EventHandler<()>) -> Element {
     rsx! {
         ModalBase { titulo: "＋ Nuevo Alumno".to_string(), on_cerrar,
             Form {
-                nombre: nombre,
-                fecha_nac: fecha_nac,
-                rango: rango,
-                representante_id: representante_id,
+                nombre, fecha_nac, rango, representante_id, rallita,
                 representantes: estado.read().representantes.clone(),
-                rallita: rallita,
                 campos_validos: formulario_valido,
                 texto_boton: "Guardar",
                 on_click: move |_| {
@@ -256,18 +249,15 @@ fn ModalNuevo(on_cerrar: EventHandler<()>) -> Element {
     }
 }
 
-/// Modal de edición individual: precarga los datos del único seleccionado.
 #[component]
 fn ModalEditar(on_cerrar: EventHandler<()>) -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
-
     let mut nombre = use_signal(|| "".to_string());
     let mut fecha_nac = use_signal(|| "".to_string());
     let mut rango = use_signal(|| 10i32);
     let mut representante_id = use_signal(|| 0usize);
     let mut rallita = use_signal(|| false);
 
-    // Precarga los datos del alumno seleccionado al abrir el modal.
     {
         let estado = estado.clone();
         use_effect(move || {
@@ -294,12 +284,8 @@ fn ModalEditar(on_cerrar: EventHandler<()>) -> Element {
     rsx! {
         ModalBase { titulo: "✏️ Editar Alumno".to_string(), on_cerrar,
             Form {
-                nombre: nombre,
-                fecha_nac: fecha_nac,
-                rango: rango,
-                representante_id: representante_id,
+                nombre, fecha_nac, rango, representante_id, rallita,
                 representantes: estado.read().representantes.clone(),
-                rallita: rallita,
                 campos_validos: formulario_valido,
                 texto_boton: "Guardar",
                 on_click: move |_| {
@@ -320,12 +306,10 @@ fn ModalEditar(on_cerrar: EventHandler<()>) -> Element {
     }
 }
 
-/// Modal de promoción masiva: aplica un nuevo grado a todos los seleccionados.
 #[component]
 fn ModalPromover(on_cerrar: EventHandler<()>) -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
-
-    let mut rango = use_signal(|| 99i32); // 99 = "-- Seleccionar Grado --"
+    let mut rango = use_signal(|| 99i32);
     let mut rallita = use_signal(|| false);
 
     let nombres: Vec<String> = {
@@ -352,8 +336,7 @@ fn ModalPromover(on_cerrar: EventHandler<()>) -> Element {
                 }
 
                 PromotionForm {
-                    rango: rango,
-                    rallita: rallita,
+                    rango, rallita,
                     texto_boton: "Aplicar cambios",
                     on_click: move |_| {
                         let _ = estado.write().promover_seleccionados(*rango.read(), *rallita.read());
@@ -365,11 +348,9 @@ fn ModalPromover(on_cerrar: EventHandler<()>) -> Element {
     }
 }
 
-/// Modal de eliminación: confirmación con el listado de los afectados.
 #[component]
 fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
-
     let seleccionados: Vec<AlumnoVista> = {
         let app = estado.read();
         app.alumnos
@@ -383,9 +364,8 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
         ModalBase { titulo: "🗑️ Eliminar Alumnos".to_string(), on_cerrar,
             div { class: "space-y-4",
                 p { class: "text-sm text-gray-400",
-                    "Se eliminarán permanentemente {seleccionados.len()} alumno(s). Esta acción no se puede deshacer."
+                    "Se eliminarán {seleccionados.len()} alumno(s). Esta acción no se puede deshacer."
                 }
-
                 div { class: "max-h-60 overflow-auto rounded-lg border border-gray-700 divide-y divide-gray-700",
                     {seleccionados.iter().map(|v| rsx! {
                         div {
@@ -396,7 +376,6 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
                         }
                     })}
                 }
-
                 button {
                     class: "w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
                     onclick: move |_| {
@@ -410,12 +389,9 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
     }
 }
 
-
-/// Modal para registrar un nuevo representante desde la vista de Alumnos.
 #[component]
 fn ModalRegistrarRepresentante(on_cerrar: EventHandler<()>) -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
-
     let mut nombre = use_signal(String::new);
     let mut contacto = use_signal(String::new);
     let mut msg = use_signal(|| (String::new(), false));
@@ -484,8 +460,11 @@ fn ModalRegistrarRepresentante(on_cerrar: EventHandler<()>) -> Element {
     }
 }
 
-/// Texto compacto para montos: sin decimales cuando son enteros
-/// ("1500"), con ellos cuando no ("1500.5"). Evita "1500.00" ruidoso.
+// ═══════════════════════════════════════════════════════════════
+// Helpers del panel de Pagos
+// ═══════════════════════════════════════════════════════════════
+
+/// Texto compacto para montos.
 fn fmt_monto(v: f64) -> String {
     let r = (v * 100.0).round() / 100.0;
     if (r - r.trunc()).abs() < f64::EPSILON {
@@ -495,8 +474,8 @@ fn fmt_monto(v: f64) -> String {
     }
 }
 
-/// (etiqueta, clases del badge) según el estado de la deuda.
-fn badge_estado(estado: &EstadoDeuda) -> (&'static str, &'static str) {
+/// (etiqueta, clases) según el estado de la deuda.
+fn badge_estado_deuda(estado: &EstadoDeuda) -> (&'static str, &'static str) {
     match estado {
         EstadoDeuda::Pagada => ("Pagado", "bg-emerald-900 text-emerald-300"),
         EstadoDeuda::Parcial => ("Parcial", "bg-amber-900 text-amber-300"),
@@ -517,29 +496,39 @@ fn clase_barra(estado: &EstadoDeuda) -> &'static str {
     }
 }
 
-/// Panel de pagos: el ciclo completo de deudas y abonos del mes en UNA
-/// pantalla — estadísticas arriba, acciones al centro, tabla con progreso
-/// por representante, gestión de representantes abajo y modal de abono.
-/// Solo pinta datos ya cargados por los casos de uso en el ViewModel.
+/// Etiqueta de un método de pago para selects.
+fn metodo_label(m: &MetodoPago) -> &'static str {
+    match m {
+        MetodoPago::Efectivo => "Efectivo",
+        MetodoPago::Transferencia => "Transferencia",
+        MetodoPago::Tarjeta => "Tarjeta",
+        MetodoPago::Cheque => "Cheque",
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Panel de Pagos (motor FIFO)
+// ═══════════════════════════════════════════════════════════════
+
 #[component]
 pub fn Pagos() -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
 
-    // Modal de registro de abono
-    let mut modal_abono = use_signal(|| false);
-    let mut abono_deuda_id = use_signal(|| 0usize);
-    let mut abono_monto = use_signal(String::new);
-    let mut abono_observacion = use_signal(String::new);
-    let mut abono_msg = use_signal(|| (String::new(), false));
+    // ── Modal: registrar pago (FIFO) ──
+    let mut modal_pago = use_signal(|| false);
+    let mut pago_representante_id = use_signal(|| 0usize);
+    let mut pago_monto = use_signal(String::new);
+    let mut pago_metodo_id = use_signal(|| 1i32); // Efectivo por defecto
+    let mut pago_msg = use_signal(|| (String::new(), false));
 
-    // Formulario compacto de representantes
+    // ── Formulario de representantes (inline) ──
     let mut rep_nombre = use_signal(String::new);
     let mut rep_contacto = use_signal(String::new);
 
-    // Mensaje de la acción "crear deudas"
-    let mut msg_deudas = use_signal(|| (String::new(), false));
+    // ── Mensaje de acción ──
+    let mut msg_accion = use_signal(|| (String::new(), false));
 
-    // Una sola pasada de lectura sobre el contexto
+    // Una sola pasada de lectura
     let (etiqueta_mes, total_deudas, total_abonado, pagados, parciales, pendientes) = {
         let e = estado.read();
         (
@@ -554,22 +543,13 @@ pub fn Pagos() -> Element {
     let por_cobrar = (total_deudas - total_abonado).max(0.0);
 
     let deudas = estado.read().deudas.clone();
+    let pagos = estado.read().pagos.clone();
     let representantes = estado.read().representantes.clone();
     let hay_pendientes = deudas.iter().any(|v| v.estado != EstadoDeuda::Pagada);
 
-    let rep_formulario_ok =
-        nombre_valido(&rep_nombre.read()) && contacto_valido(&rep_contacto.read());
+    let rep_formulario_ok = nombre_valido(&rep_nombre.read()) && contacto_valido(&rep_contacto.read());
 
-    // Deuda actualmente elegida en el modal (para el helper de saldo)
-    let deuda_elegida = estado
-        .read()
-        .deudas
-        .iter()
-        .find(|v| v.deuda.id == *abono_deuda_id.read())
-        .cloned();
-
-    // Avance global del mes (para la tarjeta de progreso), precalculado
-    // para mantener el rsx libre de expresiones con llaves anidadas.
+    // Progreso global
     let pct_global = if total_deudas > 0.0 {
         (total_abonado / total_deudas * 100.0).min(100.0)
     } else {
@@ -588,24 +568,15 @@ pub fn Pagos() -> Element {
         clase_barra(&EstadoDeuda::Parcial)
     };
 
-    // Abre el modal apuntando a una deuda concreta, con el saldo prellenado.
-    let mut abrir_modal = move |id: usize, saldo: f64| {
-        abono_deuda_id.set(id);
-        abono_monto.set(fmt_monto(saldo));
-        abono_observacion.set(String::new());
-        abono_msg.set((String::new(), false));
-        modal_abono.set(true);
-    };
-
     rsx! {
         div { class: "flex flex-col h-full space-y-5 overflow-auto pr-1",
 
-            // ── Encabezado: título + chip del periodo ──
+            // ── Encabezado ──
             div { class: "flex items-end justify-between py-1",
                 div {
                     h2 { class: "text-3xl font-bold text-gray-800", "💳 Panel de Pagos" }
                     p { class: "text-gray-500 text-sm mt-1",
-                        "Deudas y abonos de mensualidad — vista del mes completo."
+                        "Deudas y pagos de mensualidad — vista del mes completo."
                     }
                 }
                 span { class: "px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-xs font-bold tracking-widest uppercase whitespace-nowrap",
@@ -613,12 +584,12 @@ pub fn Pagos() -> Element {
                 }
             }
 
-            // ── Estadísticas del mes (4 tarjetas oscuras) ──
+            // ── Estadísticas del mes ──
             div { class: "grid grid-cols-4 gap-4",
                 div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
                     p { class: "text-xs uppercase tracking-widest text-gray-400", "💰 Deudas del mes" }
                     p { class: "text-2xl font-bold text-gray-100 mt-1", {fmt_monto(total_deudas)} }
-                    p { class: "text-[11px] text-gray-500 mt-1", "{deudas.len()} representantes" }
+                    p { class: "text-[11px] text-gray-500 mt-1", "{deudas.len()} deudas" }
                 }
                 div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
                     p { class: "text-xs uppercase tracking-widest text-gray-400", "✅ Recaudado" }
@@ -628,7 +599,7 @@ pub fn Pagos() -> Element {
                 div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
                     p { class: "text-xs uppercase tracking-widest text-gray-400", "⏳ Por cobrar" }
                     p { class: "text-2xl font-bold text-amber-400 mt-1", {fmt_monto(por_cobrar)} }
-                    p { class: "text-[11px] text-gray-500 mt-1", "{parciales} abonaron parcial · {pendientes} sin abonos" }
+                    p { class: "text-[11px] text-gray-500 mt-1", "{parciales} abonaron parcial · {pendientes} pendientes" }
                 }
                 div { class: "bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700",
                     p { class: "text-xs uppercase tracking-widest text-gray-400", "📊 Avance" }
@@ -642,7 +613,7 @@ pub fn Pagos() -> Element {
                 }
             }
 
-            // ── Barra de acciones + leyenda ──
+            // ── Barra de acciones ──
             div { class: "flex items-center justify-between gap-3 flex-wrap",
                 div { class: "flex items-center gap-3",
                     button {
@@ -651,12 +622,12 @@ pub fn Pagos() -> Element {
                             match estado.write().crear_deudas_del_mes() {
                                 Ok(creadas) => {
                                     if creadas == 0 {
-                                        msg_deudas.set(("Todos los representantes ya tienen su deuda este mes.".to_string(), false));
+                                        msg_accion.set(("Todos ya tienen deuda este mes.".to_string(), false));
                                     } else {
-                                        msg_deudas.set((format!("Se crearon {creadas} deudas."), false));
+                                        msg_accion.set((format!("Se crearon {creadas} deudas."), false));
                                     }
                                 }
-                                Err(error) => msg_deudas.set((error.to_string(), true)),
+                                Err(error) => msg_accion.set((error.to_string(), true)),
                             }
                         },
                         "＋ Crear deudas del mes"
@@ -668,61 +639,50 @@ pub fn Pagos() -> Element {
                             "px-5 py-2.5 bg-gray-700 text-gray-400 font-bold rounded-lg cursor-not-allowed text-sm"
                         },
                         disabled: !hay_pendientes,
-                        title: if hay_pendientes { "Registrar un abono" } else { "Todas las deudas están saldadas" },
                         onclick: move |_| {
-                            // Preselecciona la primera deuda con saldo pendiente.
-                            if let Some(v) = estado.read().deudas.iter().find(|v| v.estado != EstadoDeuda::Pagada) {
-                                abrir_modal(v.deuda.id, v.deuda.saldo());
-                            }
+                            pago_monto.set(String::new());
+                            pago_representante_id.set(0);
+                            pago_metodo_id.set(1);
+                            pago_msg.set((String::new(), false));
+                            modal_pago.set(true);
                         },
-                        "💵 Registrar abono"
+                        "💵 Registrar pago"
                     }
-                    if !msg_deudas.read().0.is_empty() {
+                    if !msg_accion.read().0.is_empty() {
                         span {
-                            class: if msg_deudas.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
-                            "{msg_deudas.read().0}"
+                            class: if msg_accion.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
+                            "{msg_accion.read().0}"
                         }
                     }
                 }
-                // Leyenda de colores (ayuda rápida)
                 div { class: "flex items-center gap-3 text-[11px] text-gray-500",
-                    span { class: "flex items-center gap-1",
-                        i { class: "inline-block w-2 h-2 rounded-full bg-emerald-500" }
-                        "Pagado"
-                    }
-                    span { class: "flex items-center gap-1",
-                        i { class: "inline-block w-2 h-2 rounded-full bg-amber-500" }
-                        "Abono parcial"
-                    }
-                    span { class: "flex items-center gap-1",
-                        i { class: "inline-block w-2 h-2 rounded-full bg-red-500" }
-                        "Pendiente"
-                    }
+                    span { class: "flex items-center gap-1", i { class: "inline-block w-2 h-2 rounded-full bg-emerald-500" } "Pagado" }
+                    span { class: "flex items-center gap-1", i { class: "inline-block w-2 h-2 rounded-full bg-amber-500" } "Parcial" }
+                    span { class: "flex items-center gap-1", i { class: "inline-block w-2 h-2 rounded-full bg-red-500" } "Pendiente" }
                 }
             }
 
             // ── Tabla de deudas del mes ──
-            div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl max-h-80",
+            div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl max-h-72",
                 table { class: "w-full border-collapse text-left text-xs md:text-sm",
                     thead {
                         tr { class: "sticky top-0 text-white bg-gray-800 z-10",
                             th { class: "px-4 py-3", "Representante" }
                             th { class: "px-4 py-3 text-right", "Mensualidad" }
                             th { class: "px-4 py-3 text-right", "Abonado" }
-                            th { class: "px-4 py-3 w-40", "Progreso" }
+                            th { class: "px-4 py-3 w-36", "Progreso" }
                             th { class: "px-4 py-3 text-right", "Saldo" }
                             th { class: "px-4 py-3 text-center", "Estado" }
-                            th { class: "px-4 py-3", "" }
                         }
                     }
                     tbody { class: "divide-y divide-gray-800 text-gray-300",
                         if deudas.is_empty() {
                             tr {
-                                td { colspan: 7, class: "px-4 py-10 text-center",
+                                td { colspan: 6, class: "px-4 py-10 text-center",
                                     p { class: "text-3xl mb-2", "🗓️" }
                                     p { class: "text-gray-400 font-medium", "Este mes aún no tiene deudas" }
                                     p { class: "text-gray-500 text-xs mt-1",
-                                        "Pulsa \"＋ Crear deudas del mes\" para generarlas automáticamente."
+                                        "Pulsa \"+ Crear deudas del mes\" para generarlas."
                                     }
                                 }
                             }
@@ -730,58 +690,27 @@ pub fn Pagos() -> Element {
                         {(deudas.iter()).map(|vista| {
                             let id_deuda = vista.deuda.id;
                             let saldo_texto = fmt_monto(vista.deuda.saldo());
-                            let pct = if vista.deuda.monto_total > 0.0 {
-                                (vista.deuda.total_abonado() / vista.deuda.monto_total * 100.0).min(100.0)
-                            } else {
-                                0.0
-                            };
-                            let (etiqueta, clases) = badge_estado(&vista.estado);
-                            let abrible = vista.estado != EstadoDeuda::Pagada;
-                            let saldo_fila = vista.deuda.saldo();
+                            let pct = vista.deuda.porcentaje();
+                            let (etiqueta, clases) = badge_estado_deuda(&vista.estado);
                             rsx! {
                             tr {
                                 key: "{id_deuda}",
                                 class: "hover:bg-gray-700/50",
-                                onclick: move |_| {
-                                    if abrible {
-                                        abrir_modal(id_deuda, saldo_fila);
-                                    }
-                                },
                                 td { class: "px-4 py-2.5",
                                     p { class: "font-medium text-white truncate max-w-48", "{vista.nombre_representante}" }
                                     p { class: "text-[11px] text-gray-500 font-mono", "{vista.telefono_representante}" }
                                 }
-                                td { class: "px-4 py-2.5 text-right font-mono text-gray-300",
-                                    "{fmt_monto(vista.deuda.monto_total)}"
-                                }
-                                td { class: "px-4 py-2.5 text-right font-mono text-emerald-400",
-                                    "{fmt_monto(vista.deuda.total_abonado())}"
-                                }
+                                td { class: "px-4 py-2.5 text-right font-mono text-gray-300", "{fmt_monto(vista.deuda.monto_total)}" }
+                                td { class: "px-4 py-2.5 text-right font-mono text-emerald-400", "{fmt_monto(vista.deuda.total_abonado())}" }
                                 td { class: "px-4 py-2.5",
                                     div { class: "h-2 w-full bg-gray-700 rounded-full overflow-hidden",
-                                        div {
-                                            class: "h-full rounded-full {clase_barra(&vista.estado)}",
-                                            style: "width:{pct:.0}%",
-                                        }
+                                        div { class: "h-full rounded-full {clase_barra(&vista.estado)}", style: "width:{pct:.0}%" }
                                     }
                                     p { class: "text-[10px] text-gray-500 mt-1", "{pct:.0}%" }
                                 }
-                                td { class: "px-4 py-2.5 text-right font-mono font-bold text-amber-400",
-                                    "{saldo_texto}"
-                                }
+                                td { class: "px-4 py-2.5 text-right font-mono font-bold text-amber-400", "{saldo_texto}" }
                                 td { class: "px-4 py-2.5 text-center",
-                                    span { class: "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {clases}",
-                                        "{etiqueta}"
-                                    }
-                                }
-                                td { class: "px-4 py-2.5 text-right",
-                                    if abrible {
-                                        button {
-                                            class: "px-2 py-1 rounded bg-gray-800 border border-gray-700 text-emerald-400 hover:text-white hover:border-emerald-500 font-bold text-xs transition-colors cursor-pointer",
-                                            onclick: move |_| abrir_modal(id_deuda, saldo_fila),
-                                            "+ Abono"
-                                        }
-                                    }
+                                    span { class: "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {clases}", "{etiqueta}" }
                                 }
                             }
                             }
@@ -790,12 +719,69 @@ pub fn Pagos() -> Element {
                 }
             }
 
-            // ── Gestión de representantes (compacta, misma pantalla) ──
+            // ── Historial de pagos del mes ──
+            if !pagos.is_empty() {
+                div { class: "rounded-xl border border-gray-800 bg-gray-900 shadow-xl",
+                    div { class: "px-4 py-3 bg-gray-800 rounded-t-xl",
+                        h3 { class: "text-sm font-bold text-white", "📜 Pagos registrados ({pagos.len()})" }
+                    }
+                    table { class: "w-full border-collapse text-left text-xs",
+                        thead {
+                            tr { class: "text-gray-400 border-b border-gray-800",
+                                th { class: "px-4 py-2", "Representante" }
+                                th { class: "px-4 py-2 text-right", "Monto" }
+                                th { class: "px-4 py-2", "Método" }
+                                th { class: "px-4 py-2", "Fecha" }
+                                th { class: "px-4 py-2 text-center", "Estado" }
+                                th { class: "px-4 py-2 text-right", "" }
+                            }
+                        }
+                        tbody { class: "divide-y divide-gray-800 text-gray-300",
+                            {(pagos.iter()).map(|vista| {
+                                let pago_id = vista.pago.id;
+                                let es_completado = vista.estado == EstadoPago::Completado;
+                                rsx! {
+                                tr { key: "{pago_id}", class: "hover:bg-gray-800/50",
+                                    td { class: "px-4 py-2 font-medium text-white", "{vista.nombre_representante}" }
+                                    td { class: "px-4 py-2 text-right font-mono", "{fmt_monto(vista.pago.monto_recibido)}" }
+                                    td { class: "px-4 py-2 text-gray-400", "{metodo_label(&vista.metodo)}" }
+                                    td { class: "px-4 py-2 text-gray-500 font-mono text-[11px]", "{vista.pago.fecha_pago}" }
+                                    td { class: "px-4 py-2 text-center",
+                                        span {
+                                            class: if vista.estado == EstadoPago::Completado {
+                                                "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900 text-emerald-300"
+                                            } else if vista.estado == EstadoPago::Reversado {
+                                                "px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-900 text-red-300"
+                                            } else {
+                                                "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-900 text-amber-300"
+                                            },
+                                            "{vista.estado.label()}"
+                                        }
+                                    }
+                                    td { class: "px-4 py-2 text-right",
+                                        if es_completado {
+                                            button {
+                                                class: "px-2 py-1 rounded bg-gray-800 border border-gray-700 text-red-400 hover:text-white hover:border-red-500 font-bold text-[10px] transition-colors cursor-pointer",
+                                                onclick: move |_| {
+                                                    let _ = estado.write().reversar_pago(pago_id);
+                                                },
+                                                "↩ Reversar"
+                                            }
+                                        }
+                                    }
+                                }
+                                }
+                            })}
+                        }
+                    }
+                }
+            }
+
+            // ── Representantes (compacto) ──
             div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-3",
                 div { class: "flex items-center justify-between",
                     h3 { class: "font-bold text-white", "👥 Representantes ({representantes.len()})" }
                 }
-                // Alta rápida en línea
                 div { class: "flex items-end gap-2",
                     div { class: "flex flex-col space-y-1 flex-1",
                         label { class: "text-xs font-semibold text-gray-400", "Nombre" }
@@ -818,9 +804,7 @@ pub fn Pagos() -> Element {
                             oninput: move |e| {
                                 let mut val = e.value();
                                 val.retain(|c| c.is_ascii_digit());
-                                if val.len() > 4 {
-                                    val.insert(4, '-');
-                                }
+                                if val.len() > 4 { val.insert(4, '-'); }
                                 val.truncate(12);
                                 rep_contacto.set(val);
                             }
@@ -847,7 +831,6 @@ pub fn Pagos() -> Element {
                         "＋ Agregar"
                     }
                 }
-                // Listado en grilla de 2 columnas con avatar-inicial
                 div { class: "grid grid-cols-2 gap-2 mt-2",
                     {representantes.iter().map(|r| rsx! {
                         div {
@@ -866,56 +849,46 @@ pub fn Pagos() -> Element {
             }
         }
 
-        // ═══ Modal: registrar abono ═══
-        if *modal_abono.read() {
+        // ═══ Modal: registrar pago (FIFO) ═══
+        if *modal_pago.read() {
             div {
                 class: "fixed inset-0 z-50 flex items-center justify-center bg-black/60",
-                onclick: move |_| modal_abono.set(false),
+                onclick: move |_| modal_pago.set(false),
                 div {
-                    class: "bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-6 w-full max-w-sm space-y-4 mx-4",
+                    class: "bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-6 w-full max-w-md space-y-4 mx-4",
                     onclick: move |e| e.stop_propagation(),
 
-                    // Título + cerrar
                     div { class: "flex items-center justify-between",
-                        h3 { class: "text-lg font-bold text-white", "💵 Registrar abono" }
+                        h3 { class: "text-lg font-bold text-white", "💵 Registrar pago" }
                         button {
                             class: "text-gray-400 hover:text-white text-xl leading-none cursor-pointer",
-                            onclick: move |_| modal_abono.set(false),
+                            onclick: move |_| modal_pago.set(false),
                             "✕"
                         }
                     }
 
-                    // Selector de deuda pendiente
+                    p { class: "text-xs text-gray-400",
+                        "El monto se aplicará automáticamente a las deudas más antiguas (FIFO). Si sobra, se crean adelantos."
+                    }
+
+                    // Representante
                     div { class: "flex flex-col space-y-1",
-                        div { class: "flex items-center justify-between",
-                            label { class: "text-xs font-semibold text-gray-400", "Deuda" }
-                            if let Some(v) = &deuda_elegida {
-                                span { class: "text-xs text-gray-500",
-                                    "Saldo: "
-                                    span { class: "text-amber-400 font-bold", "{fmt_monto(v.deuda.saldo())}" }
-                                }
-                            }
-                        }
+                        label { class: "text-xs font-semibold text-gray-400", "Representante" }
                         select {
                             class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50",
-                            value: "{abono_deuda_id}",
+                            value: "{pago_representante_id}",
                             onchange: move |e| {
                                 if let Ok(id) = e.value().parse::<usize>() {
-                                    abono_deuda_id.set(id);
-                                    // Autocompleta el monto con el saldo restante.
-                                    if let Some(v) = estado.read().deudas.iter().find(|d| d.deuda.id == id) {
-                                        abono_monto.set(fmt_monto(v.deuda.saldo()));
-                                    }
-                                    abono_msg.set((String::new(), false));
+                                    pago_representante_id.set(id);
+                                    pago_msg.set((String::new(), false));
                                 }
                             },
-                            option { class: "bg-gray-900", value: "0", "-- Seleccione --" }
-                            {estado.read().deudas.iter().filter(|v| v.estado != EstadoDeuda::Pagada).map(|v| rsx! {
+                            option { class: "bg-gray-900", value: "0", "-- Seleccione representante --" }
+                            {representantes.iter().map(|r| rsx! {
                                 option {
-                                    key: "{v.deuda.id}",
-                                    class: "bg-gray-900", value: "{v.deuda.id}",
-                                    selected: *abono_deuda_id.read() == v.deuda.id,
-                                    "{v.nombre_representante} — saldo {fmt_monto(v.deuda.saldo())}"
+                                    key: "{r.id}",
+                                    class: "bg-gray-900", value: "{r.id}",
+                                    "{r.nombre}"
                                 }
                             })}
                         }
@@ -923,87 +896,82 @@ pub fn Pagos() -> Element {
 
                     // Monto
                     div { class: "flex flex-col space-y-1",
-                        label { class: "text-xs font-semibold text-gray-400", "Monto" }
+                        label { class: "text-xs font-semibold text-gray-400", "Monto recibido" }
                         input {
                             r#type: "text",
-                            class: if abono_monto.read().trim().is_empty() {
-                                "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50"
-                            } else if abono_monto.read().trim().replace(',', ".").parse::<f64>().map(|m| m > 0.0).unwrap_or(false) {
-                                "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50"
-                            } else {
-                                "p-2 rounded-lg bg-gray-900 text-gray-100 border border-red-500 outline-none ring-2 ring-red-500/30"
-                            },
-                            placeholder: "Ej: 500",
-                            value: "{abono_monto}",
+                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                            placeholder: "Ej: 1500",
+                            value: "{pago_monto}",
                             oninput: move |e| {
-                                abono_monto.set(e.value());
-                                abono_msg.set((String::new(), false));
+                                pago_monto.set(e.value());
+                                pago_msg.set((String::new(), false));
                             }
                         }
                     }
 
-                    // Observación
+                    // Método de pago
                     div { class: "flex flex-col space-y-1",
-                        label { class: "text-xs font-semibold text-gray-400", "Observación (opcional)" }
-                        input {
-                            r#type: "text",
-                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
-                            placeholder: "Ej: efectivo, pago parcial…",
-                            value: "{abono_observacion}",
-                            oninput: move |e| abono_observacion.set(e.value())
+                        label { class: "text-xs font-semibold text-gray-400", "Método de pago" }
+                        select {
+                            class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50",
+                            value: "{pago_metodo_id}",
+                            onchange: move |e| {
+                                if let Ok(id) = e.value().parse::<i32>() {
+                                    pago_metodo_id.set(id);
+                                }
+                            },
+                            option { class: "bg-gray-900", value: "1", "💵 Efectivo" }
+                            option { class: "bg-gray-900", value: "2", "🏦 Transferencia" }
+                            option { class: "bg-gray-900", value: "3", "💳 Tarjeta" }
+                            option { class: "bg-gray-900", value: "4", "📄 Cheque" }
                         }
                     }
 
-                    if !abono_msg.read().0.is_empty() {
+                    if !pago_msg.read().0.is_empty() {
                         p {
-                            class: if abono_msg.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
-                            "{abono_msg.read().0}"
+                            class: if pago_msg.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
+                            "{pago_msg.read().0}"
                         }
                     }
 
-                    // Acciones del modal
                     div { class: "flex gap-2 justify-end pt-1",
                         button {
                             class: "px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors cursor-pointer",
-                            onclick: move |_| modal_abono.set(false),
+                            onclick: move |_| modal_pago.set(false),
                             "Cancelar"
                         }
                         button {
                             class: "px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                             onclick: move |_| {
-                                let deuda_id = *abono_deuda_id.read();
-                                if deuda_id == 0 {
-                                    abono_msg.set(("Seleccione una deuda.".to_string(), true));
+                                let rep_id = *pago_representante_id.read();
+                                if rep_id == 0 {
+                                    pago_msg.set(("Seleccione un representante.".to_string(), true));
                                     return;
                                 }
-                                let monto = abono_monto.read().trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
+                                let monto = pago_monto.read().trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
                                 if monto <= 0.0 {
-                                    abono_msg.set(("El monto debe ser mayor a cero.".to_string(), true));
+                                    pago_msg.set(("El monto debe ser mayor a cero.".to_string(), true));
                                     return;
                                 }
-                                if let Some(v) = estado.read().deudas.iter().find(|d| d.deuda.id == deuda_id) {
-                                    if monto > v.deuda.saldo() + 0.009 {
-                                        abono_msg.set((format!("El monto excede el saldo ({saldo}).", saldo = fmt_monto(v.deuda.saldo())), true));
-                                        return;
-                                    }
-                                }
-                                let datos = DatosAbono {
-                                    deuda_id,
-                                    monto,
-                                    fecha: Local::now().format(crate::domain::alumno::FORMATO_FECHA).to_string(),
-                                    observacion: abono_observacion.read().clone(),
+                                let metodo = *pago_metodo_id.read();
+                                let fecha = Local::now().format("%Y-%m-%d").to_string();
+                                let datos = DatosPago {
+                                    representante_id: rep_id,
+                                    monto_recibido: monto,
+                                    metodo_id: metodo,
+                                    fecha_pago: fecha,
                                 };
-                                match estado.write().registrar_abono(datos) {
+                                match estado.write().registrar_pago(datos) {
                                     Ok(()) => {
-                                        modal_abono.set(false);
-                                        abono_monto.set(String::new());
-                                        abono_observacion.set(String::new());
-                                        abono_msg.set((String::new(), false));
+                                        modal_pago.set(false);
+                                        pago_monto.set(String::new());
+                                        pago_representante_id.set(0);
+                                        pago_msg.set(("Pago registrado y aplicado correctamente.".to_string(), false));
                                     }
-                                    Err(error) => abono_msg.set((error.to_string(), true)),
+                                    Err(error) => pago_msg.set((error.to_string(), true)),
                                 }
                             },
-                            "Guardar abono"
+                            "Registrar pago"
                         }
                     }
                 }
@@ -1012,8 +980,10 @@ pub fn Pagos() -> Element {
     }
 }
 
-/// Panel de ajustes: configuraciones de la aplicación persistidas vía su
-/// puerto propio, más información de solo lectura sobre el sistema.
+// ═══════════════════════════════════════════════════════════════
+// Panel de Ajustes
+// ═══════════════════════════════════════════════════════════════
+
 #[component]
 pub fn Ajustes() -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
@@ -1022,13 +992,12 @@ pub fn Ajustes() -> Element {
         let monto = estado.read().monto_predeterminado;
         if monto > 0.0 { fmt_monto(monto) } else { String::new() }
     });
-    let mut mensaje = use_signal(|| (String::new(), false)); // (texto, es_error)
+    let mut mensaje = use_signal(|| (String::new(), false));
 
     let ruta_bd = estado.read().ruta_bd.clone();
     let periodo = estado.read().etiqueta_periodo_actual();
     let version = env!("CARGO_PKG_VERSION");
 
-    // Feedback en vivo con la MISMA regla que aplica el caso de uso.
     let monto_ok = monto_texto
         .read()
         .trim()
@@ -1040,7 +1009,6 @@ pub fn Ajustes() -> Element {
     rsx! {
         div { class: "flex flex-col h-full space-y-6 overflow-auto pr-1 max-w-3xl mx-auto",
 
-            // Encabezado
             div { class: "flex items-end justify-between py-1",
                 div {
                     h2 { class: "text-3xl font-bold text-gray-800", "⚙️ Panel de Ajustes" }
@@ -1051,11 +1019,10 @@ pub fn Ajustes() -> Element {
                 }
             }
 
-            // Configuración de mensualidad
             div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-3",
                 h3 { class: "font-bold text-white", "💵 Mensualidad" }
                 p { class: "text-xs text-gray-400",
-                    "Monto predeterminado: prellena la generación de deudas del panel de Pagos cada mes."
+                    "Monto predeterminado: se usa para crear deudas automáticamente y para adelantos en el motor FIFO."
                 }
                 div { class: "flex items-end gap-2",
                     div { class: "flex flex-col space-y-1 w-56",
@@ -1086,7 +1053,6 @@ pub fn Ajustes() -> Element {
                 }
             }
 
-            // Información del sistema (solo lectura)
             div { class: "bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5 space-y-2",
                 h3 { class: "font-bold text-white", "ℹ️ Información del sistema" }
                 div { class: "flex justify-between items-center px-1 py-2 text-sm border-b border-gray-700",

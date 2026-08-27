@@ -56,6 +56,7 @@ fn crear_representante(reps: &dyn RepresentanteRepository, nombre: &str) -> usiz
         id: 0,
         nombre: nombre.to_string(),
         numero_contacto: "0412-0000000".to_string(),
+        estado_id: 1,
     })
     .unwrap();
     reps.fetch_all()
@@ -74,6 +75,7 @@ fn alumno(nombre: &str, rango: i32, rallita: bool, representante_id: usize) -> A
         fecha_de_nacimiento: "2010-01-15".to_string(),
         representante_id,
         rallita,
+        estado_id: 1,
     }
 }
 
@@ -270,19 +272,19 @@ fn los_pagos_se_guardan_por_periodo_y_el_borrado_es_logico() {
     pagos.save(&Pago {
         id: 0,
         representante_id: rep_id,
-        monto: 1500.0,
-        periodo: "2026-08".to_string(),
-        fecha: "2026-08-24".to_string(),
-        observacion: String::new(),
+        monto_recibido: 1500.0,
+        estado_id: 1,
+        metodo_id: 1,
+        fecha_pago: "2026-08-24".to_string(),
     })
     .unwrap();
     pagos.save(&Pago {
         id: 0,
         representante_id: rep_id,
-        monto: 1500.0,
-        periodo: "2026-07".to_string(),
-        fecha: "2026-07-20".to_string(),
-        observacion: "mes anterior".to_string(),
+        monto_recibido: 1500.0,
+        estado_id: 1,
+        metodo_id: 1,
+        fecha_pago: "2026-07-20".to_string(),
     })
     .unwrap();
 
@@ -290,8 +292,7 @@ fn los_pagos_se_guardan_por_periodo_y_el_borrado_es_logico() {
     let agosto = pagos.fetch_por_periodo("2026-08").unwrap();
     assert_eq!(agosto.len(), 1);
     assert_eq!(agosto[0].representante_id, rep_id);
-    assert!((agosto[0].monto - 1500.0).abs() < f64::EPSILON);
-    assert!(agosto[0].observacion.is_empty());
+    assert!((agosto[0].monto_recibido - 1500.0).abs() < f64::EPSILON);
 
     // El historial completo trae ambos.
     assert_eq!(pagos.fetch_all().unwrap().len(), 2);

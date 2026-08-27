@@ -55,7 +55,9 @@ pub trait RepresentanteRepository: Send + Sync {
 
 /// Puerto de persistencia de pagos de mensualidad.
 pub trait PagoRepository: Send + Sync {
-    fn save(&self, pago: &Pago) -> Result<(), ErrorRepositorio>;
+    /// Guarda un pago y devuelve su ID recién asignado.
+    fn save(&self, pago: &Pago) -> Result<usize, ErrorRepositorio>;
+    /// Pagos cuya `fecha_pago` comienza con el prefijo `periodo` ("YYYY-MM").
     fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Pago>, ErrorRepositorio>;
     fn fetch_por_representante(&self, representante_id: usize) -> Result<Vec<Pago>, ErrorRepositorio>;
     fn fetch_all(&self) -> Result<Vec<Pago>, ErrorRepositorio>;

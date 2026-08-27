@@ -239,6 +239,13 @@ impl MyApp {
         Ok(())
     }
 
+    /// Reversa un pago: restaura saldos de deudas y cambia estado a Reversado.
+    pub fn reversar_pago(&mut self, pago_id: usize) -> Result<(), ErrorAplicacion> {
+        self.servicio_pagos.reversar_pago(pago_id)?;
+        self.refrescar();
+        Ok(())
+    }
+
     /// Total recaudado en el periodo administrado. Suma sobre la caché:
     /// la vista solo pinta, el dato ya fue cargado por el caso de uso.
     pub fn total_del_mes(&self) -> f64 {

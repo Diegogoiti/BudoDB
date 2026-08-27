@@ -154,13 +154,31 @@ impl SqliteRepositorio {
         // Migrar alumnos viejos (columnas de texto -> FK)
         let es_legada = Self::columna_existe(&c, "alumnos", "representante")?;
         if es_legada {
-            c.execute("INSERT OR IGNORE INTO representantes (nombre, numero_contacto) SELECT DISTINCT representante, telefono_representante FROM alumnos WHERE representante <> '' AND representante IS NOT NULL", [])?;
+            // Agregar eliminado si falta (tablas muy viejas no lo tienen)
+            if !Self::columna_existe(&c, "alumnos", "eliminado")? {
+                c.execute("ALTER TABLE alumnos ADD COLUMN eliminado BOOLEAN NOT NULL DEFAULT 0", [])?;
+            }
+            // Detectar nombre de columna de telefono
+            let tel_col = if Self::columna_existe(&c, "alumnos", "telefono_representante")? {
+                "telefono_representante"
+            } else if Self::columna_existe(&c, "alumnos", "numero_contacto")? {
+                "numero_contacto"
+            } else {
+                "numero_contacto"
+            };
+            let insert_q = format!(
+                "INSERT OR IGNORE INTO representantes (nombre, numero_contacto) SELECT DISTINCT representante, {tel_col} FROM alumnos WHERE representante <> '' AND representante IS NOT NULL"
+            );
+            c.execute(&insert_q, [])?;
             if !Self::columna_existe(&c, "alumnos", "representante_id")? {
                 c.execute("ALTER TABLE alumnos ADD COLUMN representante_id INTEGER REFERENCES representantes(id)", [])?;
             }
-            c.execute("UPDATE alumnos SET representante_id = (SELECT r.id FROM representantes r WHERE r.nombre = alumnos.representante AND r.numero_contacto = alumnos.telefono_representante) WHERE representante_id IS NULL OR representante_id = 0", [])?;
+            let update_q = format!(
+                "UPDATE alumnos SET representante_id = (SELECT r.id FROM representantes r WHERE r.nombre = alumnos.representante AND r.numero_contacto = alumnos.{tel_col}) WHERE representante_id IS NULL OR representante_id = 0"
+            );
+            c.execute(&update_q, [])?;
             let _ = c.execute("ALTER TABLE alumnos DROP COLUMN representante", []);
-            let _ = c.execute("ALTER TABLE alumnos DROP COLUMN telefono_representante", []);
+            let _ = c.execute(&format!("ALTER TABLE alumnos DROP COLUMN {tel_col}"), []);
         }
         // Migrar deudas viejas (monto -> monto_total/monto_pendiente)
         let deudas_legado = Self::columna_existe(&c, "deudas", "monto")?;
@@ -332,21 +350,23 @@ impl RepresentanteRepository for SqliteRepositorio {
 // ═══════════════════════════════════════════════════════════════
 
 impl PagoRepository for SqliteRepositorio {
-    fn save(&self, p: &Pago) -> Result<(), ErrorRepositorio> {
-        self.lock().execute(
+    fn save(&self, p: &Pago) -> Result<usize, ErrorRepositorio> {
+        let c = self.lock();
+        c.execute(
             "INSERT INTO pagos (representante_id, monto_recibido, estado_id, metodo_id, fecha_pago) VALUES (?1,?2,?3,?4,?5)",
             params![p.representante_id, p.monto_recibido, p.estado_id, p.metodo_id, p.fecha_pago],
         ).map_err(error_consulta)?;
-        Ok(())
+        let id = c.last_insert_rowid() as usize;
+        Ok(id)
     }
 
-    fn fetch_por_periodo(&self, _periodo: &str) -> Result<Vec<Pago>, ErrorRepositorio> {
-        // Pagos legacy no tienen periodo; filtramos por todos los no eliminados
+    fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Pago>, ErrorRepositorio> {
         let c = self.lock();
         let mut stmt = c.prepare(
-            "SELECT id, representante_id, monto_recibido, estado_id, metodo_id, fecha_pago FROM pagos WHERE eliminado = 0"
+            "SELECT id, representante_id, monto_recibido, estado_id, metodo_id, fecha_pago FROM pagos WHERE fecha_pago LIKE ?1 AND eliminado = 0"
         ).map_err(error_consulta)?;
-        let iter = stmt.query_map([], |row| {
+        let like_pattern = format!("{periodo}%");
+        let iter = stmt.query_map(params![like_pattern], |row| {
             Ok(Pago { id: row.get(0)?, representante_id: row.get(1)?, monto_recibido: row.get(2)?, estado_id: row.get(3)?, metodo_id: row.get(4)?, fecha_pago: row.get(5)? })
         }).map_err(error_consulta)?;
         let mut lista = Vec::new();

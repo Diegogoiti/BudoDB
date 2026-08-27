@@ -66,7 +66,7 @@ fn intentar_construir_estado() -> Result<MyApp, String> {
 
     let servicio_alumnos = Arc::new(ServicioAlumnos::nuevo(repo_alumnos, logger.clone()));
     let servicio_representantes = Arc::new(ServicioRepresentantes::nuevo(repo_representantes, logger.clone()));
-    let servicio_pagos = Arc::new(ServicioPagos::nuevo(repo_pagos, repo_aplicaciones, repo_deudas.clone(), logger.clone()));
+    let servicio_pagos = Arc::new(ServicioPagos::nuevo(repo_pagos, repo_aplicaciones, repo_deudas.clone(), repo_historial.clone(), repo_ajustes.clone(), logger.clone()));
     let servicio_ajustes = Arc::new(ServicioAjustes::nuevo(repo_ajustes, logger.clone()));
     let servicio_deudas = Arc::new(ServicioDeudas::nuevo(repo_deudas, repo_abonos.clone(), logger.clone()));
     let servicio_abonos = Arc::new(ServicioAbonos::nuevo(repo_abonos, logger.clone()));
