@@ -208,6 +208,52 @@ impl SqliteRepositorio {
             c.execute("DROP TABLE pagos", [])?;
             c.execute("ALTER TABLE pagos_nuevo RENAME TO pagos", [])?;
         }
+        // Migrar historial_pagos viejo (tipo TEXT -> tipo_id INTEGER)
+        let historial_legado = Self::columna_existe(&c, "historial_pagos", "tipo")?;
+        if historial_legado && !Self::columna_existe(&c, "historial_pagos", "tipo_id")? {
+            c.execute("CREATE TABLE IF NOT EXISTS historial_nuevo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                representante_id INTEGER NOT NULL,
+                tipo_id INTEGER NOT NULL,
+                monto REAL NOT NULL DEFAULT 0,
+                periodo TEXT NOT NULL,
+                fecha TEXT NOT NULL,
+                observacion TEXT NOT NULL DEFAULT '',
+                eliminado BOOLEAN NOT NULL DEFAULT 0,
+                FOREIGN KEY (representante_id) REFERENCES representantes(id)
+            )", [])?;
+            // Copiar datos, convirtiendo texto tipo a int: 'Deuda_Creada'->1, 'Pago_Registrado'->2, etc.
+            c.execute("INSERT INTO historial_nuevo (id, representante_id, tipo_id, monto, periodo, fecha, observacion, eliminado)
+                SELECT id, representante_id,
+                    CASE tipo
+                        WHEN 'Deuda_Creada' THEN 1
+                        WHEN 'Pago_Registrado' THEN 2
+                        WHEN 'Abono_Aplicado' THEN 3
+                        WHEN 'Ajuste_Manual' THEN 4
+                        WHEN 'Anulacion' THEN 5
+                        ELSE 1
+                    END,
+                    monto, periodo, fecha, observacion, eliminado
+                FROM historial_pagos", [])?;
+            c.execute("DROP TABLE historial_pagos", [])?;
+            c.execute("ALTER TABLE historial_nuevo RENAME TO historial_pagos", [])?;
+        }
+        // Asegurar que historial_pagos tenga la columna eliminado
+        if Self::columna_existe(&c, "historial_pagos", "tipo")? && !Self::columna_existe(&c, "historial_pagos", "tipo_id")? {
+            // Fallback: si no se pudo migrar arriba, recrear tabla vacía
+            c.execute("DROP TABLE IF EXISTS historial_pagos", [])?;
+            c.execute("CREATE TABLE historial_pagos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                representante_id INTEGER NOT NULL,
+                tipo_id INTEGER NOT NULL,
+                monto REAL NOT NULL DEFAULT 0,
+                periodo TEXT NOT NULL,
+                fecha TEXT NOT NULL,
+                observacion TEXT NOT NULL DEFAULT '',
+                eliminado BOOLEAN NOT NULL DEFAULT 0,
+                FOREIGN KEY (representante_id) REFERENCES representantes(id)
+            )", [])?;
+        }
 
         // ─── Índices de performance (DESPUÉS de migraciones) ───
         c.execute("CREATE INDEX IF NOT EXISTS idx_alumnos_rep_estado ON alumnos(representante_id, estado_id)", [])?;

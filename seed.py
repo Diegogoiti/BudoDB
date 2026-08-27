@@ -70,7 +70,7 @@ CREATE TABLE ajustes (
 CREATE TABLE historial_pagos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     representante_id INTEGER NOT NULL,
-    tipo TEXT NOT NULL,
+    tipo_id INTEGER NOT NULL,
     monto REAL NOT NULL DEFAULT 0,
     periodo TEXT NOT NULL,
     fecha TEXT NOT NULL,
