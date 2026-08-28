@@ -1,4 +1,4 @@
-use crate::application::dto::{AlumnoVista, DatosAlumno, DatosAbono, DatosPago, DatosRepresentante, DeudaVista, PagoVista};
+use crate::application::dto::{AlumnoVista, DatosAlumno, DatosAbono, DatosPago, DatosRepresentante, DeudaVista, HistorialPagoVista, PagoVista};
 use crate::application::error::ErrorAplicacion;
 use crate::application::ports::Logger;
 use crate::application::service::ServicioAlumnos;
@@ -41,12 +41,15 @@ pub struct MyApp {
     pub morosos: Vec<Representante>,
     /// Deudas del periodo actual con saldos y estados ya resueltos.
     pub deudas: Vec<DeudaVista>,
+    pub historial_pagos: Vec<HistorialPagoVista>,
     /// Mes que administra el panel de pagos, formato "YYYY-MM".
     pub periodo_actual: String,
     /// Monto predeterminado de mensualidad configurado en Ajustes (0 = sin configurar).
     pub monto_predeterminado: f64,
     /// Ruta del archivo de base de datos (solo lectura, para el panel de Ajustes).
     pub ruta_bd: String,
+    /// ID del representante seleccionado en Consulta para filtrar Historial.
+    pub representante_historial_id: Option<usize>,
     pub seleccionados: HashSet<usize>,
     servicio_alumnos: Arc<ServicioAlumnos>,
     servicio_representantes: Arc<ServicioRepresentantes>,
@@ -86,6 +89,8 @@ impl MyApp {
             pagos: Vec::new(),
             morosos: Vec::new(),
             deudas: Vec::new(),
+            historial_pagos: Vec::new(),
+            representante_historial_id: None,
             periodo_actual: format!("{:04}-{:02}", ahora.year(), ahora.month()),
             monto_predeterminado: 0.0,
             ruta_bd,
@@ -270,12 +275,14 @@ impl MyApp {
         }
         let fecha = Local::now().format("%Y-%m-%d").to_string();
         let reps = self.representantes.clone();
+        let alumnos = self.alumnos.iter().map(|v| v.alumno.clone()).collect::<Vec<_>>();
         let periodo = self.periodo_actual.clone();
         let creadas = self.servicio_deudas.crear_deudas_del_mes(
             &periodo,
             monto,
             &fecha,
             &reps,
+            &alumnos,
         )?;
         self.refrescar();
         Ok(creadas)
@@ -325,6 +332,29 @@ impl MyApp {
             .iter()
             .filter(|v| v.estado == EstadoDeuda::Pendiente)
             .count()
+    }
+
+    // ---------- Historial de pagos ----------
+
+    /// Carga el historial de pagos. Si se pasa un representante_id, filtra solo ese.
+    pub fn refrescar_historial(&mut self, representante_id: Option<usize>) {
+        let reps = self.representantes.clone();
+        let resultado = match representante_id {
+            Some(id) => self.servicio_historial.listar_por_representante(id, &reps),
+            None => self.servicio_historial.listar_todos(&reps),
+        };
+        match resultado {
+            Ok(lista) => self.historial_pagos = lista,
+            Err(error) => self.logger.error(&format!(
+                "No se pudo cargar el historial: {error}"
+            )),
+        }
+    }
+
+    /// Selecciona un representante para filtrar el historial.
+    pub fn seleccionar_rep_historial(&mut self, representante_id: Option<usize>) {
+        self.representante_historial_id = representante_id;
+        self.refrescar_historial(representante_id);
     }
 
     // ---------- Consultas locales sobre la caché ----------

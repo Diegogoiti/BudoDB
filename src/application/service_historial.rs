@@ -34,19 +34,38 @@ impl ServicioHistorialPagos {
 
     pub fn listar_todos(&self, representantes: &[Representante]) -> Result<Vec<HistorialPagoVista>, ErrorAplicacion> {
         let registros = self.repositorio.fetch_all()?;
-        Ok(registros.iter().map(|r| {
-            let nombre = representantes.iter().find(|rep| rep.id == r.representante_id)
-                .map(|rep| rep.nombre.clone()).unwrap_or_else(|| "Desconocido".to_string());
-            HistorialPagoVista { historial: r.clone(), nombre_representante: nombre }
-        }).collect())
+        Ok(self.resolver_vistas(registros, representantes))
+    }
+
+    pub fn listar_por_representante(
+        &self,
+        representante_id: usize,
+        representantes: &[Representante],
+    ) -> Result<Vec<HistorialPagoVista>, ErrorAplicacion> {
+        let registros = self.repositorio.fetch_por_representante(representante_id)?;
+        Ok(self.resolver_vistas(registros, representantes))
     }
 
     pub fn listar_por_periodo(&self, periodo: &str, representantes: &[Representante]) -> Result<Vec<HistorialPagoVista>, ErrorAplicacion> {
         let registros = self.repositorio.fetch_por_periodo(periodo)?;
-        Ok(registros.iter().map(|r| {
-            let nombre = representantes.iter().find(|rep| rep.id == r.representante_id)
-                .map(|rep| rep.nombre.clone()).unwrap_or_else(|| "Desconocido".to_string());
-            HistorialPagoVista { historial: r.clone(), nombre_representante: nombre }
-        }).collect())
+        Ok(self.resolver_vistas(registros, representantes))
+    }
+
+    fn resolver_vistas(
+        &self,
+        registros: Vec<HistorialPago>,
+        representantes: &[Representante],
+    ) -> Vec<HistorialPagoVista> {
+        registros
+            .iter()
+            .map(|r| {
+                let nombre = representantes
+                    .iter()
+                    .find(|rep| rep.id == r.representante_id)
+                    .map(|rep| rep.nombre.clone())
+                    .unwrap_or_else(|| "Desconocido".to_string());
+                HistorialPagoVista { historial: r.clone(), nombre_representante: nombre }
+            })
+            .collect()
     }
 }
