@@ -16,7 +16,7 @@ pub fn SearchBar(
     };
 
     rsx! {
-        div { class: "flex flex-row space-x-2 p-3 bg-gray-800 rounded-xl shadow-md border border-gray-700",
+        div { class: "flex flex-row flex-1 items-center space-x-2 p-3 bg-gray-800 rounded-xl shadow-md border border-gray-700",
             // Dropdown para el parámetro
             select {
                 class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-xs",

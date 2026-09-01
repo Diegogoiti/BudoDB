@@ -127,7 +127,7 @@ pub fn Alumnos() -> Element {
             }
 
             // ── Barra superior: búsqueda + filtro ──
-            div { class: "flex flex-wrap gap-3 items-center",
+            div { class: "flex flex-wrap justify-between items-center gap-4 px-1 py-2",
                 SearchBar {
                     on_input: move |data| busqueda.set(data),
                     options: vec![
@@ -259,19 +259,20 @@ pub fn Alumnos() -> Element {
 
 /// Contenedor común de modales.
 #[component]
-fn ModalBase(titulo: String, on_cerrar: EventHandler<()>, children: Element) -> Element {
+fn ModalBase(titulo: String, on_cerrar: EventHandler<()>, ancho: Option<String>, children: Element) -> Element {
+    let max_w = ancho.unwrap_or_else(|| "max-w-2xl".to_string());
     rsx! {
         div {
-            class: "fixed inset-0 z-50 flex items-center justify-center bg-black/60",
+            class: "fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm",
             onclick: move |_| on_cerrar.call(()),
             div {
-                class: "bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-6 w-full max-w-2xl space-y-4 mx-4 max-h-[90vh] overflow-auto",
+                class: "bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8 w-full {max_w} space-y-6 mx-4 max-h-[90vh] overflow-auto",
                 onclick: move |e| e.stop_propagation(),
 
-                div { class: "flex items-center justify-between",
+                div { class: "flex items-center justify-between pb-3 border-b border-gray-700/50",
                     h3 { class: "text-lg font-bold text-white", "{titulo}" }
                     button {
-                        class: "text-gray-400 hover:text-white text-xl leading-none cursor-pointer",
+                        class: "text-gray-400 text-xl leading-none cursor-pointer",
                         onclick: move |_| on_cerrar.call(()),
                         "✕"
                     }
@@ -804,6 +805,8 @@ fn ConsultaTab() -> Element {
     let all_pagos = estado.read().pagos.clone();
     let representantes = estado.read().representantes.clone();
     let hay_pendientes = all_deudas.iter().any(|v| v.estado != EstadoDeuda::Pagada);
+    let hay_rep_seleccionado = estado.read().seleccionados.len() == 1;
+    let puede_registrar_pago = hay_pendientes && hay_rep_seleccionado;
 
     let pct_global = if total_deudas > 0.0 {
         (total_abonado / total_deudas * 100.0).min(100.0)
@@ -862,6 +865,12 @@ fn ConsultaTab() -> Element {
             }
         });
     }
+
+    let pago_rep_id_val = *pago_representante_id.read();
+    let pago_rep_nombre = representantes.iter()
+        .find(|r| r.id == pago_rep_id_val)
+        .map(|r| format!("{} ({})", r.nombre, r.numero_contacto))
+        .unwrap_or_else(|| "Representante".to_string());
 
     rsx! {
         div { class: "flex flex-col h-full space-y-3 p-4 overflow-auto",
@@ -963,7 +972,7 @@ fn ConsultaTab() -> Element {
             // -- Acciones --
             div { class: "flex justify-center gap-3 pt-1",
                 button {
-                    class: "px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
+                    class: "px-5 py-2.5 bg-blue-600 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                     onclick: move |_| {
                         match estado.write().crear_deudas_del_mes() {
                             Ok(creadas) => {
@@ -979,15 +988,16 @@ fn ConsultaTab() -> Element {
                     "＋ Crear deudas del mes"
                 }
                 button {
-                    class: if hay_pendientes {
-                        "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                    class: if puede_registrar_pago {
+                        "px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
                     } else {
                         "px-5 py-2.5 bg-gray-400 text-gray-800 font-bold rounded-lg cursor-not-allowed text-sm"
                     },
-                    disabled: !hay_pendientes,
+                    disabled: !puede_registrar_pago,
                     onclick: move |_| {
+                        let seleccionados: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+                        pago_representante_id.set(seleccionados[0]);
                         pago_monto.set(String::new());
-                        pago_representante_id.set(0);
                         pago_metodo_id.set(1);
                         pago_msg.set((String::new(), false));
                         modal_pago.set(true);
@@ -999,53 +1009,26 @@ fn ConsultaTab() -> Element {
 
         // Modal: registrar pago (FIFO)
         if *modal_pago.read() {
-            div {
-                class: "fixed inset-0 z-50 flex items-center justify-center bg-black/60",
-                onclick: move |_| modal_pago.set(false),
-                div {
-                    class: "bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-5 w-full max-w-sm space-y-3 mx-4",
-                    onclick: move |e| e.stop_propagation(),
-
-                    div { class: "flex items-center justify-between",
-                        h3 { class: "text-base font-bold text-white", "Registrar pago" }
-                        button {
-                            class: "text-gray-400 hover:text-white text-lg leading-none cursor-pointer",
-                            onclick: move |_| modal_pago.set(false),
-                            "✕"
+            ModalBase {
+                titulo: "💰 Registrar pago".to_string(),
+                ancho: Some("max-w-sm".to_string()),
+                on_cerrar: move |_| modal_pago.set(false),
+                div { class: "space-y-4",
+                    div { class: "flex items-center gap-3 p-3 rounded-lg bg-gray-900 border border-gray-700",
+                        div { class: "w-9 h-9 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-sm shrink-0",
+                            {pago_rep_nombre.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_else(|| "R".to_string())}
+                        }
+                        div { class: "min-w-0",
+                            p { class: "text-sm font-bold text-white truncate", "{pago_rep_nombre}" }
+                            p { class: "text-[10px] text-gray-500", "El monto se aplica a la deuda mas antigua (FIFO). Si sobra, crea adelantos." }
                         }
                     }
 
-                    p { class: "text-[10px] text-gray-400",
-                        "El monto se aplica a la deuda mas antigua (FIFO). Si sobra, crea adelantos."
-                    }
-
-                    div { class: "flex flex-col space-y-0.5",
-                        label { class: "text-[10px] font-semibold text-gray-400", "Representante" }
-                        select {
-                            class: "p-1.5 rounded bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-1 focus:ring-blue-500/50 text-xs",
-                            value: "{pago_representante_id}",
-                            onchange: move |e| {
-                                if let Ok(id) = e.value().parse::<usize>() {
-                                    pago_representante_id.set(id);
-                                    pago_msg.set((String::new(), false));
-                                }
-                            },
-                            option { class: "bg-gray-900", value: "0", "-- Seleccione --" }
-                            {representantes.iter().map(|r| rsx! {
-                                option {
-                                    key: "{r.id}",
-                                    class: "bg-gray-900", value: "{r.id}",
-                                    "{r.nombre}"
-                                }
-                            })}
-                        }
-                    }
-
-                    div { class: "flex flex-col space-y-0.5",
-                        label { class: "text-[10px] font-semibold text-gray-400", "Monto recibido" }
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "text-sm font-semibold text-gray-400", "Monto recibido" }
                         input {
                             r#type: "text",
-                            class: "p-1.5 rounded bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-1 focus:ring-blue-500/50 text-xs",
+                            class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50 text-sm placeholder:text-gray-600",
                             placeholder: "Ej: 1500",
                             value: "{pago_monto}",
                             oninput: move |e| {
@@ -1055,10 +1038,10 @@ fn ConsultaTab() -> Element {
                         }
                     }
 
-                    div { class: "flex flex-col space-y-0.5",
-                        label { class: "text-[10px] font-semibold text-gray-400", "Metodo de pago" }
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "text-sm font-semibold text-gray-400", "Tipo de pago" }
                         select {
-                            class: "p-1.5 rounded bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-1 focus:ring-blue-500/50 text-xs",
+                            class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-sm",
                             value: "{pago_metodo_id}",
                             onchange: move |e| {
                                 if let Ok(id) = e.value().parse::<i32>() {
@@ -1074,25 +1057,21 @@ fn ConsultaTab() -> Element {
 
                     if !pago_msg.read().0.is_empty() {
                         p {
-                            class: if pago_msg.read().1 { "text-[10px] text-red-400" } else { "text-[10px] text-emerald-400" },
+                            class: if pago_msg.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
                             "{pago_msg.read().0}"
                         }
                     }
 
                     div { class: "flex gap-2 justify-end pt-1",
                         button {
-                            class: "px-3 py-1.5 text-[11px] text-gray-400 hover:text-white transition-colors cursor-pointer",
+                            class: "px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer",
                             onclick: move |_| modal_pago.set(false),
                             "Cancelar"
                         }
                         button {
-                            class: "px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-xs",
+                            class: "px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                             onclick: move |_| {
                                 let rep_id = *pago_representante_id.read();
-                                if rep_id == 0 {
-                                    pago_msg.set(("Seleccione un representante.".to_string(), true));
-                                    return;
-                                }
                                 let monto = pago_monto.read().trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
                                 if monto <= 0.0 {
                                     pago_msg.set(("El monto debe ser mayor a cero.".to_string(), true));
