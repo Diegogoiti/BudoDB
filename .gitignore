@@ -8,3 +8,6 @@
 *.db
 *.db-wal
 *.db-shm
+
+# Node (Tailwind CLI)
+node_modules/

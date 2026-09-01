@@ -182,7 +182,7 @@ pub fn Alumnos() -> Element {
                 }
                 button {
                     class: if hay_seleccion {
-                        "px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                        "px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
                     } else {
                         "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
                     },

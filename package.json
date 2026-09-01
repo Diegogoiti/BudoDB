@@ -1,0 +1,12 @@
+{
+  "name": "budodb",
+  "private": true,
+  "scripts": {
+    "tailwind": "npx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css",
+    "tailwind:watch": "npx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.3.3",
+    "@tailwindcss/cli": "^4.3.3"
+  }
+}
