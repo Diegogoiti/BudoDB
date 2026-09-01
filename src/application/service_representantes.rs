@@ -162,10 +162,6 @@ mod pruebas {
         )
     }
 
-    fn rep(id: usize, nombre: &str) -> Representante {
-        Representante { id, nombre: nombre.to_string(), numero_contacto: "0412-0000000".to_string(), estado_id: 1 }
-    }
-
     fn datos_rep() -> DatosRepresentante {
         DatosRepresentante {
             nombre: "Pedro Pérez".to_string(),

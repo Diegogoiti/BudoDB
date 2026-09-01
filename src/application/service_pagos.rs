@@ -467,3 +467,390 @@ impl ServicioPagos {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use crate::application::ports::{
+        AplicacionPagoRepository, ConfiguracionAppRepository, DeudaRepository, ErrorRepositorio,
+        HistorialPagoRepository, Logger, PagoRepository,
+    };
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    struct LoggerMock;
+    impl Logger for LoggerMock {
+        fn debug(&self, _: &str) {}
+        fn info(&self, _: &str) {}
+        fn error(&self, _: &str) {}
+    }
+
+    // ── Repositorios en memoria ──
+
+    struct RepoPagosMock {
+        pagos: Mutex<Vec<Pago>>,
+        proximo_id: Mutex<usize>,
+        estados: Mutex<Vec<(usize, i32)>>,
+    }
+
+    impl RepoPagosMock {
+        fn nuevo() -> Self {
+            Self { pagos: Mutex::new(Vec::new()), proximo_id: Mutex::new(1), estados: Mutex::new(Vec::new()) }
+        }
+    }
+
+    impl PagoRepository for RepoPagosMock {
+        fn save(&self, p: &Pago) -> Result<usize, ErrorRepositorio> {
+            let mut p = p.clone();
+            p.id = *self.proximo_id.lock().unwrap();
+            *self.proximo_id.lock().unwrap() += 1;
+            self.pagos.lock().unwrap().push(p.clone());
+            Ok(p.id)
+        }
+        fn fetch_por_periodo(&self, _: &str) -> Result<Vec<Pago>, ErrorRepositorio> {
+            Ok(self.pagos.lock().unwrap().clone())
+        }
+        fn fetch_por_representante(&self, _: usize) -> Result<Vec<Pago>, ErrorRepositorio> {
+            Ok(self.pagos.lock().unwrap().clone())
+        }
+        fn fetch_all(&self) -> Result<Vec<Pago>, ErrorRepositorio> {
+            Ok(self.pagos.lock().unwrap().clone())
+        }
+        fn update_estado(&self, id: usize, estado_id: i32) -> Result<(), ErrorRepositorio> {
+            self.estados.lock().unwrap().push((id, estado_id));
+            Ok(())
+        }
+        fn delete(&self, _: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+            Ok(())
+        }
+    }
+
+    struct RepoDeudasMock {
+        // deudas cobrables (Fase 1, FIFO) — ya ordenadas por vencimiento
+        cobrables: Mutex<Vec<Deuda>>,
+        // estado de cada deuda tras update_estado
+        saldos: Mutex<Vec<(usize, f64, i32)>>,
+        // deudas creadas (Fase 2 adelantos)
+        guardadas: Mutex<Vec<Deuda>>,
+        // periodos existentes por representante
+        periodos_rep: Mutex<Vec<String>>,
+        // fetch_por_periodo devuelve las guardadas
+        todas: Mutex<Vec<Deuda>>,
+    }
+
+    impl RepoDeudasMock {
+        fn nuevo() -> Self {
+            Self {
+                cobrables: Mutex::new(Vec::new()),
+                saldos: Mutex::new(Vec::new()),
+                guardadas: Mutex::new(Vec::new()),
+                periodos_rep: Mutex::new(Vec::new()),
+                todas: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn con_cobrables(vec: Vec<Deuda>) -> Self {
+            let repo = Self::nuevo();
+            *repo.cobrables.lock().unwrap() = vec;
+            repo
+        }
+    }
+
+    impl DeudaRepository for RepoDeudasMock {
+        fn save(&self, d: &Deuda) -> Result<(), ErrorRepositorio> {
+            let mut d = d.clone();
+            d.id = 100 + self.guardadas.lock().unwrap().len();
+            self.guardadas.lock().unwrap().push(d.clone());
+            self.todas.lock().unwrap().push(d);
+            Ok(())
+        }
+        fn fetch_por_periodo(&self, periodo: &str) -> Result<Vec<Deuda>, ErrorRepositorio> {
+            Ok(self.todas.lock().unwrap().iter().filter(|d| d.periodo == periodo).cloned().collect())
+        }
+        fn fetch_cobrables_por_representante(&self, _: usize) -> Result<Vec<Deuda>, ErrorRepositorio> {
+            Ok(self.cobrables.lock().unwrap().clone())
+        }
+        fn fetch_todos_periodos_por_representante(&self, _: usize) -> Result<Vec<String>, ErrorRepositorio> {
+            Ok(self.periodos_rep.lock().unwrap().clone())
+        }
+        fn fetch_all(&self) -> Result<Vec<Deuda>, ErrorRepositorio> {
+            Ok(self.todas.lock().unwrap().clone())
+        }
+        fn update_estado(&self, id: usize, monto_pendiente: f64, estado_id: i32) -> Result<(), ErrorRepositorio> {
+            self.saldos.lock().unwrap().push((id, monto_pendiente, estado_id));
+            Ok(())
+        }
+        fn delete(&self, _: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+            Ok(())
+        }
+    }
+
+    struct RepoAplicacionesMock {
+        aplicaciones: Mutex<Vec<AplicacionPago>>,
+        borradas_por_pago: Mutex<Vec<usize>>,
+    }
+
+    impl RepoAplicacionesMock {
+        fn nuevo() -> Self {
+            Self { aplicaciones: Mutex::new(Vec::new()), borradas_por_pago: Mutex::new(Vec::new()) }
+        }
+    }
+
+    impl AplicacionPagoRepository for RepoAplicacionesMock {
+        fn save(&self, a: &AplicacionPago) -> Result<(), ErrorRepositorio> {
+            self.aplicaciones.lock().unwrap().push(a.clone());
+            Ok(())
+        }
+        fn fetch_por_pago(&self, pago_id: usize) -> Result<Vec<AplicacionPago>, ErrorRepositorio> {
+            Ok(self.aplicaciones.lock().unwrap().iter().filter(|a| a.pago_id == pago_id).cloned().collect())
+        }
+        fn fetch_por_deuda(&self, _: usize) -> Result<Vec<AplicacionPago>, ErrorRepositorio> {
+            Ok(Vec::new())
+        }
+        fn delete_por_pago(&self, pago_id: usize) -> Result<(), ErrorRepositorio> {
+            self.borradas_por_pago.lock().unwrap().push(pago_id);
+            Ok(())
+        }
+    }
+
+    struct RepoAjustesMock {
+        valores: Mutex<HashMap<String, String>>,
+    }
+
+    impl RepoAjustesMock {
+        fn nuevo() -> Self {
+            Self { valores: Mutex::new(HashMap::new()) }
+        }
+        fn con_mensualidad(monto: f64) -> Self {
+            let repo = Self::nuevo();
+            repo.valores.lock().unwrap().insert("monto_mensualidad".to_string(), monto.to_string());
+            repo
+        }
+    }
+
+    impl ConfiguracionAppRepository for RepoAjustesMock {
+        fn obtener(&self, clave: &str) -> Result<Option<String>, ErrorRepositorio> {
+            Ok(self.valores.lock().unwrap().get(clave).cloned())
+        }
+        fn guardar(&self, clave: &str, valor: &str) -> Result<(), ErrorRepositorio> {
+            self.valores.lock().unwrap().insert(clave.to_string(), valor.to_string());
+            Ok(())
+        }
+    }
+
+    struct RepoHistorialMock;
+    impl HistorialPagoRepository for RepoHistorialMock {
+        fn save(&self, _: &HistorialPago) -> Result<(), ErrorRepositorio> { Ok(()) }
+        fn fetch_por_representante(&self, _: usize) -> Result<Vec<HistorialPago>, ErrorRepositorio> { Ok(Vec::new()) }
+        fn fetch_por_periodo(&self, _: &str) -> Result<Vec<HistorialPago>, ErrorRepositorio> { Ok(Vec::new()) }
+        fn fetch_all(&self) -> Result<Vec<HistorialPago>, ErrorRepositorio> { Ok(Vec::new()) }
+        fn delete(&self, _: HashSet<usize>) -> Result<(), ErrorRepositorio> { Ok(()) }
+    }
+
+    // ── Helpers ──
+
+    struct Mocks {
+        pagos: Arc<RepoPagosMock>,
+        deudas: Arc<RepoDeudasMock>,
+        aplicaciones: Arc<RepoAplicacionesMock>,
+    }
+
+    fn construir(
+        repo_deudas: RepoDeudasMock,
+        repo_ajustes: RepoAjustesMock,
+    ) -> (ServicioPagos, Mocks) {
+        let pagos = Arc::new(RepoPagosMock::nuevo());
+        let deudas = Arc::new(repo_deudas);
+        let aplicaciones = Arc::new(RepoAplicacionesMock::nuevo());
+        let servicio = ServicioPagos::nuevo(
+            pagos.clone(),
+            aplicaciones.clone(),
+            deudas.clone(),
+            Arc::new(RepoHistorialMock),
+            Arc::new(repo_ajustes),
+            Arc::new(LoggerMock),
+        );
+        (servicio, Mocks { pagos, deudas, aplicaciones })
+    }
+
+    fn deuda(id: usize, periodo: &str, monto_total: f64, monto_pendiente: f64, estado: EstadoDeuda) -> Deuda {
+        Deuda {
+            id,
+            representante_id: 1,
+            monto_total,
+            monto_pendiente,
+            periodo: periodo.to_string(),
+            fecha_vencimiento: format!("{periodo}-10"),
+            estado_id: estado.id(),
+            alumno_id: None,
+        }
+    }
+
+    fn datos_pago(monto: f64) -> DatosPago {
+        DatosPago {
+            representante_id: 1,
+            monto_recibido: monto,
+            metodo_id: MetodoPago::Efectivo.id(),
+            fecha_pago: "2026-08-24".to_string(),
+        }
+    }
+
+    // ── Tests ──
+
+    #[test]
+    fn rechaza_pagos_invalidos_sin_crear_pago() {
+        let (s, m) = construir(RepoDeudasMock::nuevo(), RepoAjustesMock::con_mensualidad(1500.0));
+
+        // Sin representante
+        let mut p = datos_pago(1500.0);
+        p.representante_id = 0;
+        assert!(matches!(s.registrar_pago(p), Err(ErrorAplicacion::Validacion(_))));
+
+        // Monto negativo
+        let p = datos_pago(-1.0);
+        assert!(matches!(s.registrar_pago(p), Err(ErrorAplicacion::Validacion(_))));
+
+        assert!(m.pagos.pagos.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn pago_total_a_una_deuda_la_deja_pagada() {
+        // 1 deuda pendiente de 1500; se paga exacto → Pagada y saldo 0
+        let repo = RepoDeudasMock::con_cobrables(vec![deuda(1, "2026-08", 1500.0, 1500.0, EstadoDeuda::Pendiente)]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        let res = s.registrar_pago(datos_pago(1500.0)).unwrap();
+
+        assert_eq!(res, vec![(1, 1500.0)]);
+        // Se actualizó la deuda 1 a Pagada (estado 3) con saldo 0
+        let saldos = m.deudas.saldos.lock().unwrap();
+        assert_eq!(saldos[0].0, 1);
+        assert!(saldos[0].1.abs() < f64::EPSILON);
+        assert_eq!(saldos[0].2, EstadoDeuda::Pagada.id());
+        // Se registró exactamente una aplicación
+        assert_eq!(m.aplicaciones.aplicaciones.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn pago_parcial_deja_la_deuda_parcial() {
+        // 1 deuda de 1500; se pagan 500 → Parcial, saldo 1000
+        let repo = RepoDeudasMock::con_cobrables(vec![deuda(1, "2026-08", 1500.0, 1500.0, EstadoDeuda::Pendiente)]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        let res = s.registrar_pago(datos_pago(500.0)).unwrap();
+
+        assert_eq!(res, vec![(1, 500.0)]);
+        let saldos = m.deudas.saldos.lock().unwrap();
+        assert_eq!(saldos[0].0, 1);
+        assert!((saldos[0].1 - 1000.0).abs() < f64::EPSILON);
+        assert_eq!(saldos[0].2, EstadoDeuda::Parcial.id());
+    }
+
+    #[test]
+    fn fifo_aplica_primero_a_la_deuda_mas_antigua() {
+        // 2 deudas pendientes: 2026-05 (1000) y 2026-06 (1000).
+        // Se pagan 1500 → cubre 05 completa y 500 de 06.
+        let repo = RepoDeudasMock::con_cobrables(vec![
+            deuda(1, "2026-05", 1000.0, 1000.0, EstadoDeuda::Pendiente),
+            deuda(2, "2026-06", 1000.0, 1000.0, EstadoDeuda::Pendiente),
+        ]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        let res = s.registrar_pago(datos_pago(1500.0)).unwrap();
+
+        assert_eq!(res, vec![(1, 1000.0), (2, 500.0)]);
+        let saldos = m.deudas.saldos.lock().unwrap();
+        assert!((saldos[0].1).abs() < f64::EPSILON);            // deuda 1 → 0
+        assert_eq!(saldos[0].2, EstadoDeuda::Pagada.id());
+        assert!((saldos[1].1 - 500.0).abs() < f64::EPSILON);     // deuda 2 → 500
+        assert_eq!(saldos[1].2, EstadoDeuda::Parcial.id());
+    }
+
+    #[test]
+    fn pago_exacto_no_genera_adelanto() {
+        // Deuda 2026-07 de 1000, se paga exacto 1000 → sin sobrante → sin adelanto
+        let repo = RepoDeudasMock::con_cobrables(vec![deuda(1, "2026-07", 1000.0, 1000.0, EstadoDeuda::Pendiente)]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        let res = s.registrar_pago(datos_pago(1000.0)).unwrap();
+
+        assert_eq!(res, vec![(1, 1000.0)]);
+        assert!(m.deudas.guardadas.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn excedente_genera_adelanto_para_el_siguiente_mes() {
+        // Deuda 2026-07 de 1000, se pagan 1000 exacto → sin sobrante, sin adelanto.
+        // Este test aísla la Fase 2 cuando NO sobra.
+        let repo = RepoDeudasMock::con_cobrables(vec![deuda(1, "2026-07", 1000.0, 1000.0, EstadoDeuda::Pendiente)]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        s.registrar_pago(datos_pago(1000.0)).unwrap();
+        assert!(m.deudas.guardadas.lock().unwrap().is_empty());
+
+        // Ahora: deuda de 1000 pero se pagan 2500 → sobra 1500 → adelanto 1 mes
+        let repo = RepoDeudasMock::con_cobrables(vec![deuda(1, "2026-07", 1000.0, 1000.0, EstadoDeuda::Pendiente)]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        let res = s.registrar_pago(datos_pago(2500.0)).unwrap();
+
+        // 1000 a la deuda vieja + adelanto de 1500 para el mes siguiente
+        assert_eq!(res.len(), 2);
+        assert_eq!(res[0], (1, 1000.0));
+        let adelanto = res[1];
+        assert_eq!(adelanto.1, 1500.0);
+        // Se creó una deuda nueva (adelanto)
+        assert_eq!(m.deudas.guardadas.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn sin_deudas_sin_configuracion_de_mensualidad_falla_al_faltar_mensualidad() {
+        // Sin deudas cobrables pero con dinero sobrante, el motor intenta
+        // crear un adelanto y necesita la mensualidad configurada.
+        let (s, _) = construir(RepoDeudasMock::nuevo(), RepoAjustesMock::nuevo());
+
+        let res = s.registrar_pago(datos_pago(1500.0));
+        assert!(matches!(res, Err(ErrorAplicacion::Validacion(msg)) if msg.contains("monto de mensualidad")));
+    }
+
+    #[test]
+    fn sin_deudas_con_mensualidad_crea_adelanto() {
+        // Sin deudas viejas pero con mensualidad configurada, todo el monto
+        // se convierte en un adelanto para el siguiente mes.
+        let (s, m) = construir(RepoDeudasMock::nuevo(), RepoAjustesMock::con_mensualidad(1500.0));
+
+        let res = s.registrar_pago(datos_pago(1500.0)).unwrap();
+
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].1, 1500.0);
+        // Se creó una deuda anticipada como adelanto
+        assert_eq!(m.deudas.guardadas.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn reversar_restaura_el_saldo_de_la_deuda() {
+        // Deuda 1 de 1500 pagada con 1500 → saldo 0/pagada.
+        // Al reversar, se restaura a 1500/pendiente.
+        let repo = RepoDeudasMock::con_cobrables(vec![deuda(1, "2026-08", 1500.0, 1500.0, EstadoDeuda::Pendiente)]);
+        let (s, m) = construir(repo, RepoAjustesMock::con_mensualidad(1500.0));
+
+        s.registrar_pago(datos_pago(1500.0)).unwrap();
+
+        // Guardar la deuda en "todas" y resetear saldos para medir la reversa
+        m.deudas.saldos.lock().unwrap().clear();
+        // Simular estado post-pago
+        *m.deudas.todas.lock().unwrap() = vec![deuda(1, "2026-08", 1500.0, 0.0, EstadoDeuda::Pagada)];
+        let mut deuda_guardada = deuda(1, "2026-08", 1500.0, 0.0, EstadoDeuda::Pagada);
+        deuda_guardada.id = 1;
+        *m.deudas.guardadas.lock().unwrap() = vec![deuda_guardada];
+
+        // El pago #1 tiene una aplicación. Reversar lo restaura.
+        s.reversar_pago(1).unwrap();
+
+        // Se llamó update_estado para restaurar: saldo 1500, estado Pendiente
+        let saldos = m.deudas.saldos.lock().unwrap();
+        assert_eq!(saldos[0].0, 1);
+        assert!((saldos[0].1 - 1500.0).abs() < f64::EPSILON);
+        assert_eq!(saldos[0].2, EstadoDeuda::Pendiente.id());
+    }
+}
