@@ -172,7 +172,7 @@ pub fn Alumnos() -> Element {
                     class: if uno_seleccionado {
                         "px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
                     } else {
-                        "px-5 py-2.5 bg-gray-300 text-gray-500 font-bold rounded-lg cursor-not-allowed text-sm"
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
                     },
                     disabled: !uno_seleccionado,
                     title: if uno_seleccionado { "Editar el alumno seleccionado" } else { "Seleccione exactamente 1 alumno" },
@@ -183,7 +183,7 @@ pub fn Alumnos() -> Element {
                     class: if hay_seleccion {
                         "px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
                     } else {
-                        "px-5 py-2.5 bg-gray-300 text-gray-500 font-bold rounded-lg cursor-not-allowed text-sm"
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
                     },
                     disabled: !hay_seleccion,
                     title: if hay_seleccion { "Promover a los seleccionados" } else { "Seleccione al menos 1 alumno" },
@@ -194,7 +194,7 @@ pub fn Alumnos() -> Element {
                     class: if hay_seleccion {
                         "px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
                     } else {
-                        "px-5 py-2.5 bg-gray-300 text-gray-500 font-bold rounded-lg cursor-not-allowed text-sm"
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
                     },
                     disabled: !hay_seleccion,
                     title: if hay_seleccion { "Eliminar a los seleccionados" } else { "Seleccione al menos 1 alumno" },
@@ -748,9 +748,6 @@ fn ConsultaTab() -> Element {
     let mut pago_msg = use_signal(|| (String::new(), false));
     let mut msg_accion = use_signal(|| (String::new(), false));
 
-    let mut modal_sel_rep = use_signal(|| false);
-    let mut sel_rep_id = use_signal(|| 0usize);
-
     let (etiqueta_mes, total_deudas, total_abonado, pagados, parciales, pendientes) = {
         let e = estado.read();
         (
@@ -814,14 +811,6 @@ fn ConsultaTab() -> Element {
         let ultimo_id = ultimo.map_or(0, |p| p.pago.id);
         DeudaRow { vista: v.clone(), ultimo: ultimo.cloned(), puede_reversar, ultimo_id }
     }).collect();
-
-    let rep_hist_label = {
-        let app = estado.read();
-        match app.representante_historial_id {
-            Some(id) => app.representantes.iter().find(|r| r.id == id).map(|r| r.nombre.clone()).unwrap_or_else(|| "Nadie".to_string()),
-            None => "Todos".to_string(),
-        }
-    };
 
     rsx! {
         div { class: "flex flex-col h-full space-y-3 p-4 overflow-auto",
@@ -901,8 +890,8 @@ fn ConsultaTab() -> Element {
                 row_key: deuda_key,
                 render_row: render_deuda_row,
                 estado,
-                aplicar_color_seleccion: false,
-                checkbox: false,
+                aplicar_color_seleccion: true,
+                checkbox: true,
                 on_doble_click: move |_| {},
             }
 
@@ -941,7 +930,7 @@ fn ConsultaTab() -> Element {
                     class: if hay_pendientes {
                         "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
                     } else {
-                        "px-5 py-2.5 bg-gray-300 text-gray-500 font-bold rounded-lg cursor-not-allowed text-sm"
+                        "px-5 py-2.5 bg-gray-400 text-gray-800 font-bold rounded-lg cursor-not-allowed text-sm"
                     },
                     disabled: !hay_pendientes,
                     onclick: move |_| {
@@ -952,15 +941,6 @@ fn ConsultaTab() -> Element {
                         modal_pago.set(true);
                     },
                     "💰 Registrar pago"
-                }
-                button {
-                    class: "px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
-                    onclick: move |_| {
-                        sel_rep_id.set(0);
-                        modal_sel_rep.set(true);
-                    },
-                    "📋 Ver historial"
-                    span { class: "ml-1 text-purple-200 text-xs font-normal", "{rep_hist_label}" }
                 }
             }
         }
@@ -1085,70 +1065,6 @@ fn ConsultaTab() -> Element {
                                 }
                             },
                             "Registrar"
-                        }
-                    }
-                }
-            }
-        }
-
-        // Modal: seleccionar representante para historial
-        if *modal_sel_rep.read() {
-            div {
-                class: "fixed inset-0 z-50 flex items-center justify-center bg-black/60",
-                onclick: move |_| modal_sel_rep.set(false),
-                div {
-                    class: "bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-5 w-full max-w-sm space-y-3 mx-4",
-                    onclick: move |e| e.stop_propagation(),
-
-                    div { class: "flex items-center justify-between",
-                        h3 { class: "text-base font-bold text-white", "Seleccionar representante" }
-                        button {
-                            class: "text-gray-400 hover:text-white text-lg leading-none cursor-pointer",
-                            onclick: move |_| modal_sel_rep.set(false),
-                            "✕"
-                        }
-                    }
-
-                    p { class: "text-[10px] text-gray-400",
-                        "Selecciona un representante para ver su historial, o deja \"Todos\" para ver el historial completo."
-                    }
-
-                    div { class: "flex flex-col space-y-0.5",
-                        label { class: "text-[10px] font-semibold text-gray-400", "Representante" }
-                        select {
-                            class: "p-1.5 rounded bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-1 focus:ring-blue-500/50 text-xs",
-                            value: "{sel_rep_id}",
-                            onchange: move |e| {
-                                if let Ok(id) = e.value().parse::<usize>() {
-                                    sel_rep_id.set(id);
-                                }
-                            },
-                            option { class: "bg-gray-900", value: "0", "Todos" }
-                            {representantes.iter().map(|r| rsx! {
-                                option {
-                                    key: "{r.id}",
-                                    class: "bg-gray-900", value: "{r.id}",
-                                    "{r.nombre}"
-                                }
-                            })}
-                        }
-                    }
-
-                    div { class: "flex gap-2 justify-end pt-1",
-                        button {
-                            class: "px-3 py-1.5 text-[11px] text-gray-400 hover:text-white transition-colors cursor-pointer",
-                            onclick: move |_| modal_sel_rep.set(false),
-                            "Cancelar"
-                        }
-                        button {
-                            class: "px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-xs",
-                            onclick: move |_| {
-                                let rep_id = *sel_rep_id.read();
-                                let id_opt = if rep_id == 0 { None } else { Some(rep_id) };
-                                estado.write().seleccionar_rep_historial(id_opt);
-                                modal_sel_rep.set(false);
-                            },
-                            "Ver historial"
                         }
                     }
                 }
