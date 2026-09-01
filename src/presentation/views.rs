@@ -4,7 +4,7 @@
 use crate::application::dto::{AlumnoVista, DatosAlumno, DatosPago, DatosRepresentante, DeudaVista, HistorialPagoVista, PagoVista};
 use crate::application::validation::*;
 use crate::domain::{EstadoDeuda, EstadoPago, MetodoPago};
-use crate::presentation::components::datatable::{DataTable, HeaderColumn};
+use crate::presentation::components::datatable::{DataTable, HeaderColumn, RowKeyFn, RenderRowFn};
 use crate::presentation::components::filter::Filter;
 use crate::presentation::components::form::Form;
 use crate::presentation::components::promotion_form::PromotionForm;
@@ -97,7 +97,7 @@ pub fn Alumnos() -> Element {
     };
 
     rsx! {
-        div { class: "flex flex-col h-full space-y-4",
+        div { class: "flex flex-col h-full space-y-4 overflow-auto",
 
             // ── Encabezado ──
             div { class: "flex items-center justify-between py-1",
@@ -144,10 +144,11 @@ pub fn Alumnos() -> Element {
             DataTable {
                 data: alumnos_filtrados,
                 header_columns: ALUMNO_COLUMNS,
-                row_key: alumno_key,
-                render_row: render_alumno_row,
+                row_key: RowKeyFn(alumno_key),
+                render_row: RenderRowFn(render_alumno_row),
                 estado,
                 aplicar_color_seleccion: true,
+                single_select: false,
                 checkbox: true,
                 on_doble_click: move |_| modal_activo.set(Some(ModalAlumno::Editar)),
             }
@@ -162,7 +163,7 @@ pub fn Alumnos() -> Element {
             }
 
             // ── Acciones: botones que abren modales ──
-            div { class: "flex justify-center gap-3 pt-1",
+            div { class: "flex flex-wrap justify-center gap-3 pt-1",
                 button {
                     class: "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                     onclick: move |_| modal_activo.set(Some(ModalAlumno::Nuevo)),
@@ -202,7 +203,7 @@ pub fn Alumnos() -> Element {
                     "🗑️ Eliminar"
                 }
                 button {
-                    class: "px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
+                    class: "px-5 py-2.5 bg-blue-800 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                     onclick: move |_| modal_activo.set(Some(ModalAlumno::RegistrarRepresentante)),
                     "👤 Registrar Representante"
                 }
@@ -641,7 +642,7 @@ static DEUDAS_COLUMNS: &[HeaderColumn] = &[
 ];
 
 fn deuda_key(row: &DeudaRow) -> usize {
-    row.vista.deuda.id
+    row.vista.deuda.representante_id
 }
 
 fn render_deuda_row(vista: &DeudaRow, mut estado: Signal<my_app::MyApp>) -> Element {
@@ -787,11 +788,7 @@ fn ConsultaTab() -> Element {
 
     let q = busqueda.read().to_lowercase();
     let filtro = filtro_estado.read().clone();
-    let seleccionados = estado.read().seleccionados.clone();
     let deudas: Vec<_> = all_deudas.iter().filter(|v| {
-        if !seleccionados.is_empty() && !seleccionados.contains(&v.deuda.id) {
-            return false;
-        }
         let match_nombre = q.is_empty() || v.nombre_representante.to_lowercase().contains(&q)
             || v.telefono_representante.contains(&q);
         let match_estado = filtro.is_empty() || match filtro.as_str() {
@@ -811,6 +808,22 @@ fn ConsultaTab() -> Element {
         let ultimo_id = ultimo.map_or(0, |p| p.pago.id);
         DeudaRow { vista: v.clone(), ultimo: ultimo.cloned(), puede_reversar, ultimo_id }
     }).collect();
+
+    {
+        let mut estado = estado.clone();
+        use_effect(move || {
+            let seleccionados: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+            let rep_id = if seleccionados.len() == 1 {
+                Some(seleccionados[0])
+            } else {
+                None
+            };
+            let actual = estado.read().representante_historial_id;
+            if rep_id != actual {
+                estado.write().seleccionar_rep_historial(rep_id);
+            }
+        });
+    }
 
     rsx! {
         div { class: "flex flex-col h-full space-y-3 p-4 overflow-auto",
@@ -887,10 +900,11 @@ fn ConsultaTab() -> Element {
             DataTable {
                 data: Signal::new(deudas_rows),
                 header_columns: DEUDAS_COLUMNS,
-                row_key: deuda_key,
-                render_row: render_deuda_row,
+                row_key: RowKeyFn(deuda_key),
+                render_row: RenderRowFn(render_deuda_row),
                 estado,
-                aplicar_color_seleccion: true,
+                aplicar_color_seleccion: false,
+                single_select: true,
                 checkbox: true,
                 on_doble_click: move |_| {},
             }
@@ -1179,10 +1193,11 @@ fn HistorialTab() -> Element {
                     DataTable {
                         data: Signal::new(filtrado.clone()),
                         header_columns: HISTORIAL_COLUMNS,
-                        row_key: historial_key,
-                        render_row: render_historial_row,
+                        row_key: RowKeyFn(historial_key),
+                        render_row: RenderRowFn(render_historial_row),
                         estado,
                         aplicar_color_seleccion: false,
+                        single_select: false,
                         checkbox: false,
                         on_doble_click: move |_| {},
                     }

@@ -21,6 +21,34 @@ impl Clone for HeaderColumn {
     }
 }
 
+pub struct RowKeyFn<T: 'static>(pub fn(&T) -> usize);
+
+impl<T: 'static> Clone for RowKeyFn<T> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<T: 'static> PartialEq for RowKeyFn<T> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::fn_addr_eq(self.0, other.0)
+    }
+}
+
+pub struct RenderRowFn<T: 'static>(pub fn(&T, Signal<my_app::MyApp>) -> Element);
+
+impl<T: 'static> Clone for RenderRowFn<T> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<T: 'static> PartialEq for RenderRowFn<T> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::fn_addr_eq(self.0, other.0)
+    }
+}
+
 const ALTO_FILA_PX: f64 = 50.0;
 const PASO_MINIMO_PX: f64 = ALTO_FILA_PX / 2.0;
 const SOBRE_MUESTRA: usize = 20;
@@ -30,11 +58,12 @@ const FILAS_VENTANA: usize = 80;
 pub fn DataTable<T: Clone + PartialEq + 'static>(
     data: Signal<Vec<T>>,
     header_columns: &'static [HeaderColumn],
-    row_key: fn(&T) -> usize,
-    render_row: fn(&T, Signal<my_app::MyApp>) -> Element,
+    row_key: RowKeyFn<T>,
+    render_row: RenderRowFn<T>,
     estado: Signal<my_app::MyApp>,
     aplicar_color_seleccion: bool,
     checkbox: bool,
+    single_select: bool,
     on_doble_click: EventHandler<()>,
 ) -> Element {
     let items = data.read().clone();
@@ -98,7 +127,7 @@ pub fn DataTable<T: Clone + PartialEq + 'static>(
 
                     for (i, item) in ventana {
                         {
-                            let key = row_key(&item);
+                            let key = row_key.0(&item);
                             let es_seleccionado = estado.read().seleccionados.contains(&key);
                             let base = if aplicar_color_seleccion && es_seleccionado {
                                 "bg-blue-500 hover:bg-blue-700"
@@ -113,7 +142,11 @@ pub fn DataTable<T: Clone + PartialEq + 'static>(
                                     style: "height:{ALTO_FILA_PX}px",
                                     class: { base },
                                     onclick: move |_| {
-                                        estado.write().toggle_seleccion(key);
+                                        if single_select {
+                                            estado.write().toggle_single_seleccion(key);
+                                        } else {
+                                            estado.write().toggle_seleccion(key);
+                                        }
                                     },
                                     ondoubleclick: move |_| {
                                         if !estado.read().seleccionados.contains(&key) {
@@ -130,7 +163,7 @@ pub fn DataTable<T: Clone + PartialEq + 'static>(
                                             }
                                         }
                                     }
-                                    { render_row(&item, estado.clone()) }
+                                    { render_row.0(&item, estado.clone()) }
                                 }
                             }
                         }

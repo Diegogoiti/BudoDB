@@ -367,6 +367,15 @@ impl MyApp {
         }
     }
 
+    pub fn toggle_single_seleccion(&mut self, id: usize) {
+        if self.seleccionados.contains(&id) {
+            self.seleccionados.remove(&id);
+        } else {
+            self.seleccionados.clear();
+            self.seleccionados.insert(id);
+        }
+    }
+
     pub fn toggle_all(&mut self, alumnos_visibles: Vec<AlumnoVista>) {
         // 1. Verificamos si TODOS los alumnos que se están viendo ya están seleccionados
         let todos_seleccionados = alumnos_visibles
