@@ -397,14 +397,20 @@ fn ModalPromover(on_cerrar: EventHandler<()>) -> Element {
 
     rsx! {
         ModalBase { titulo: "🥋 Promover en masa".to_string(), on_cerrar,
-            div { class: "space-y-3",
-                p { class: "text-sm text-gray-400",
-                    "Se aplicará el nuevo grado a {nombres.len()} alumno(s) seleccionado(s):"
+            div { class: "space-y-5",
+                div { class: "flex items-center justify-between",
+                    p { class: "text-sm text-gray-400",
+                        "Se aplicará el nuevo grado a {nombres.len()} alumno(s):"
+                    }
+                    span { class: "px-2.5 py-0.5 rounded-full bg-gray-700 text-gray-300 text-[11px] font-bold",
+                        "{nombres.len()}"
+                    }
                 }
-                div { class: "flex flex-wrap gap-2",
+                div { class: "max-h-40 overflow-y-auto rounded-lg border border-gray-700 divide-y divide-gray-700",
                     {nombres.iter().map(|n| rsx! {
-                        span { class: "px-2 py-1 rounded bg-gray-900 border border-gray-700 text-xs text-gray-300",
-                            "{n}"
+                        div { class: "flex items-center gap-2 px-3 py-1.5 bg-gray-900",
+                            div { class: "w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" }
+                            span { class: "text-sm text-gray-200 truncate", "{n}" }
                         }
                     })}
                 }
@@ -436,22 +442,28 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
 
     rsx! {
         ModalBase { titulo: "🚫 Desactivar Alumnos".to_string(), on_cerrar,
-            div { class: "space-y-4",
-                p { class: "text-sm text-gray-400",
-                    "Se desactivarán {seleccionados.len()} alumno(s). Podrás reactivarlos desde los filtros."
+            div { class: "space-y-5",
+                div { class: "flex items-center justify-between",
+                    p { class: "text-sm text-gray-400",
+                        "Se desactivarán {seleccionados.len()} alumno(s). Podrás reactivarlos desde los filtros."
+                    }
+                    span { class: "px-2.5 py-0.5 rounded-full bg-gray-700 text-gray-300 text-[11px] font-bold",
+                        "{seleccionados.len()}"
+                    }
                 }
-                div { class: "max-h-60 overflow-auto rounded-lg border border-gray-700 divide-y divide-gray-700",
+                div { class: "max-h-48 overflow-y-auto rounded-lg border border-gray-700 divide-y divide-gray-700",
                     {seleccionados.iter().map(|v| rsx! {
                         div {
                             key: "{v.alumno.id}",
-                            class: "px-3 py-2 text-sm text-gray-200 bg-gray-900",
-                            span { class: "font-bold", "{v.alumno.nombre}" }
-                            span { class: "text-gray-500 text-xs ml-2", "#{v.alumno.id}" }
+                            class: "flex items-center gap-2 px-3 py-2 bg-gray-900",
+                            div { class: "w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" }
+                            span { class: "text-sm font-medium text-gray-200 truncate", "{v.alumno.nombre}" }
+                            span { class: "text-gray-500 text-xs ml-auto shrink-0", "#{v.alumno.id}" }
                         }
                     })}
                 }
                 button {
-                    class: "w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
+                    class: "w-full py-3 bg-red-600 text-white rounded-xl font-bold active:scale-[0.98] transition-all cursor-pointer",
                     onclick: move |_| {
                         let _ = estado.write().desactivar_seleccionados();
                         on_cerrar.call(());
@@ -474,23 +486,23 @@ fn ModalRegistrarRepresentante(on_cerrar: EventHandler<()>) -> Element {
 
     rsx! {
         ModalBase { titulo: "Registrar Representante".to_string(), on_cerrar,
-            div { class: "space-y-4",
-                div { class: "flex flex-col space-y-1",
+            div { class: "space-y-5",
+                div { class: "flex flex-col space-y-2",
                     label { class: "text-sm font-semibold text-gray-400", "Nombre completo" }
                     input {
                         r#type: "text",
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                         placeholder: "Ej: Maria Garcia",
                         value: "{nombre}",
                         oninput: move |e| nombre.set(e.value())
                     }
                 }
-                div { class: "flex flex-col space-y-1",
+                div { class: "flex flex-col space-y-2",
                     label { class: "text-sm font-semibold text-gray-400", "Telefono de contacto" }
                     input {
                         r#type: "tel",
                         maxlength: "12",
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                         placeholder: "0412-0000000",
                         value: "{contacto}",
                         oninput: move |e| {
@@ -508,7 +520,7 @@ fn ModalRegistrarRepresentante(on_cerrar: EventHandler<()>) -> Element {
                 }
                 button {
                     class: if formulario_ok {
-                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer"
                     } else {
                         "w-full py-3 bg-gray-700 text-gray-400 font-bold rounded-xl cursor-pointer"
                     },
@@ -1480,20 +1492,20 @@ fn ModalRepNuevo(on_cerrar: EventHandler<()>) -> Element {
 
     rsx! {
         ModalBase { titulo: "👤 Nuevo Representante".to_string(), on_cerrar,
-            div { class: "space-y-3",
-                div { class: "flex flex-col space-y-0.5",
-                    label { class: "text-xs font-semibold text-gray-400", "Nombre completo" }
+            div { class: "space-y-5",
+                div { class: "flex flex-col space-y-2",
+                    label { class: "text-sm font-semibold text-gray-400", "Nombre completo" }
                     input {
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                         placeholder: "Ej: Maria Garcia",
                         value: "{nombre}",
                         oninput: move |e| nombre.set(e.value())
                     }
                 }
-                div { class: "flex flex-col space-y-0.5",
-                    label { class: "text-xs font-semibold text-gray-400", "Telefono" }
+                div { class: "flex flex-col space-y-2",
+                    label { class: "text-sm font-semibold text-gray-400", "Telefono" }
                     input {
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                         placeholder: "0412-0000000",
                         value: "{contacto}",
                         oninput: move |e| {
@@ -1511,7 +1523,7 @@ fn ModalRepNuevo(on_cerrar: EventHandler<()>) -> Element {
                 }
                 button {
                     class: if formulario_ok {
-                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer"
                     } else {
                         "w-full py-3 bg-gray-700 text-gray-400 font-bold rounded-xl cursor-pointer"
                     },
@@ -1560,20 +1572,20 @@ fn ModalRepEditar(id: usize, on_cerrar: EventHandler<()>) -> Element {
 
     rsx! {
         ModalBase { titulo: "✏️ Editar Representante".to_string(), on_cerrar,
-            div { class: "space-y-3",
-                div { class: "flex flex-col space-y-0.5",
-                    label { class: "text-xs font-semibold text-gray-400", "Nombre completo" }
+            div { class: "space-y-5",
+                div { class: "flex flex-col space-y-2",
+                    label { class: "text-sm font-semibold text-gray-400", "Nombre completo" }
                     input {
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                         placeholder: "Ej: Maria Garcia",
                         value: "{nombre}",
                         oninput: move |e| nombre.set(e.value())
                     }
                 }
-                div { class: "flex flex-col space-y-0.5",
-                    label { class: "text-xs font-semibold text-gray-400", "Telefono" }
+                div { class: "flex flex-col space-y-2",
+                    label { class: "text-sm font-semibold text-gray-400", "Telefono" }
                     input {
-                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        class: "p-2.5 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
                         placeholder: "0412-0000000",
                         value: "{contacto}",
                         oninput: move |e| {
@@ -1591,7 +1603,7 @@ fn ModalRepEditar(id: usize, on_cerrar: EventHandler<()>) -> Element {
                 }
                 button {
                     class: if formulario_ok {
-                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer"
                     } else {
                         "w-full py-3 bg-gray-700 text-gray-400 font-bold rounded-xl cursor-pointer"
                     },

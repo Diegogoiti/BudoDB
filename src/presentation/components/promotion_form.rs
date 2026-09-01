@@ -13,25 +13,24 @@ pub fn PromotionForm(
 
     // Estilos dinámicos para el botón basados en si se modificó el grado
     let color_btn = if *modificado.read() {
-        "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-950 transition-all active:scale-[0.98] cursor-pointer text-sm"
+        "w-full mt-4 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-950 transition-all active:scale-[0.98] cursor-pointer text-sm"
     } else {
         "w-full mt-4 py-3 bg-gray-700 text-gray-400 font-bold rounded-xl cursor-not-allowed transition-all text-sm"
     };
 
-    // Estilos dinámicos para la caja del checkbox (para que se vea gris si está bloqueada)
     let clases_label_rallita = if *modificado.read() {
-        "flex items-center space-x-3 p-[11px] bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700/50 transition-colors h-[42px]"
+        "flex items-center space-x-3 p-[11px] bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer transition-colors h-[42px]"
     } else {
         "flex items-center space-x-3 p-[11px] bg-gray-800 rounded-lg border border-gray-700 cursor-not-allowed opacity-40 h-[42px]"
     };
 
     rsx! {
-        div { class: "flex-1 flex flex-col justify-around bg-gray-800 p-8 rounded-2xl shadow-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl text-gray-100",
+        div { class: "flex-1 flex flex-col justify-around bg-gray-800 p-8 rounded-2xl shadow-xl text-gray-100 space-y-4",
 
-            div { class: "grid grid-cols-2 gap-4 items-end",
+            div { class: "grid grid-cols-2 gap-5 items-end",
 
                 // Columna Izquierda: Selección de Cinta
-                div { class: "flex flex-col space-y-1",
+                div { class: "flex flex-col space-y-2",
                     label { class: "text-sm font-semibold text-gray-400", "Cinta" }
                     div { class: "relative w-full flex items-center",
                         select {
