@@ -16,10 +16,10 @@ pub fn SearchBar(
     };
 
     rsx! {
-        div { class: "flex flex-row space-x-2 p-4 bg-white rounded-xl shadow-md border border-gray-200",
+        div { class: "flex flex-row space-x-2 p-3 bg-gray-800 rounded-xl shadow-md border border-gray-700",
             // Dropdown para el parámetro
             select {
-                class: "p-2 rounded bg-gray-50 border border-gray-300 text-gray-700",
+                class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-xs",
                 value: "{options.iter().position(|(_, value)| *value == *selected_param.read()).unwrap_or(0)}",
                 onchange: move |evt| {
                     if let Ok(index) = evt.value().parse::<usize>() {
@@ -40,7 +40,7 @@ pub fn SearchBar(
 
             // Input de texto
             input {
-                class: "flex-1 p-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
+                class: "flex-1 p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none text-xs placeholder-gray-500",
                 placeholder: "{placeholder}",
                 value: "{search_text}",
                 oninput: move |evt| {

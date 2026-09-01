@@ -149,12 +149,12 @@ pub fn Alumnos() -> Element {
                     initial_param: Columnas::Cinta,
                 }
                 select {
-                    class: "p-2 rounded-lg bg-white text-gray-700 border border-gray-300 outline-none cursor-pointer text-xs",
+                    class: "p-2 rounded-lg bg-gray-800 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-xs",
                     value: "{filtro_estado}",
                     onchange: move |e| filtro_estado.set(e.value()),
-                    option { value: "Activo", "Activos" }
-                    option { value: "Inactivo", "Inactivos" }
-                    option { value: "Todos", "Todos" }
+                    option { class: "bg-gray-900", value: "Activo", "Activos" }
+                    option { class: "bg-gray-900", value: "Inactivo", "Inactivos" }
+                    option { class: "bg-gray-900", value: "Todos", "Todos" }
                 }
             }
 
@@ -595,6 +595,13 @@ fn tipo_historial_label(tipo_id: i32) -> &'static str {
     }
 }
 
+/// Un movimiento es un "adelanto" cuando se creó una deuda para un mes
+/// futuro (motor FIFO fase 2). En el historial se registra como
+/// DeudaCreada con observación que comienza con "Adelanto".
+fn es_adelanto(vista: &HistorialPagoVista) -> bool {
+    vista.historial.tipo_id == 1 && vista.historial.observacion.starts_with("Adelanto")
+}
+
 /// Color del badge según tipo de historial.
 fn tipo_historial_clase(tipo_id: i32) -> &'static str {
     match tipo_id {
@@ -616,7 +623,7 @@ pub fn Pagos() -> Element {
         div { class: "flex flex-col h-full space-y-0",
 
             // -- Barra de pestanas --
-            div { class: "flex border-b border-gray-700 bg-gray-900",
+            div { class: "flex border-b border-gray-800 bg-gray-900 rounded-t-xl px-2",
                 button {
                     class: if *pestana.read() == "consulta" {
                         "px-5 py-2.5 text-sm font-bold text-blue-400 border-b-2 border-blue-400 transition-colors cursor-pointer"
@@ -1125,7 +1132,9 @@ fn ConsultaTab() -> Element {
 #[component]
 fn HistorialTab() -> Element {
     let mut estado = use_context::<Signal<my_app::MyApp>>();
-    let mut busqueda = use_signal(String::new);
+    let mut desde = use_signal(|| String::new());
+    let mut hasta = use_signal(|| String::new());
+    let mut filtro_tipo = use_signal(|| "Todos".to_string());
     let mut cargado = use_signal(|| false);
 
     // Cargar historial al montar la primera vez
@@ -1144,12 +1153,30 @@ fn HistorialTab() -> Element {
         }
     };
 
-    let q = busqueda.read().to_lowercase();
+    // Filtro por rango de fechas. Fechas vacías = sin límite = todo.
+    // Las fechas usan formato ISO "YYYY-MM-DD", por lo que la comparación
+    // lexicográfica del string es equivalente a la cronológica.
+    let desde_val = desde.read().clone();
+    let hasta_val = hasta.read().clone();
+    let tipo = filtro_tipo.read().clone();
     let filtrado: Vec<_> = historial.iter().filter(|v| {
-        if q.is_empty() { return true; }
-        v.nombre_representante.to_lowercase().contains(&q)
-            || v.historial.observacion.to_lowercase().contains(&q)
-            || v.historial.periodo.contains(&q)
+        let fecha = &v.historial.fecha;
+        if !desde_val.is_empty() && fecha < &desde_val {
+            return false;
+        }
+        if !hasta_val.is_empty() && fecha > &hasta_val {
+            return false;
+        }
+        // Filtro por tipo de movimiento
+        match tipo.as_str() {
+            "Deuda" => v.historial.tipo_id == 1 && !es_adelanto(v),
+            "Pago" => v.historial.tipo_id == 2,
+            "Abono" => v.historial.tipo_id == 3,
+            "Anticipado" => es_adelanto(v),
+            "Ajuste" => v.historial.tipo_id == 4,
+            "Anulación" => v.historial.tipo_id == 5,
+            _ => true,
+        }
     }).cloned().collect();
 
     let total_monto: f64 = filtrado.iter().map(|v| v.historial.monto).sum();
@@ -1193,17 +1220,36 @@ fn HistorialTab() -> Element {
                 }
             }
 
-            // -- Busqueda --
-            div { class: "flex items-center gap-3",
-                div { class: "flex-1 relative",
+            // -- Filtro por rango de fechas + tipo --
+            div { class: "flex items-end gap-4 bg-gray-800 rounded-xl px-4 py-3 border border-gray-700",
+                div { class: "flex flex-col space-y-1 flex-1",
+                    label { class: "text-[10px] uppercase tracking-wider text-gray-400", "Desde" }
                     input {
-                        r#type: "text",
-                        class: "w-full p-2 pl-8 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50 text-xs",
-                        placeholder: "Buscar en historial...",
-                        value: "{busqueda}",
-                        oninput: move |e| busqueda.set(e.value())
+                        r#type: "date",
+                        class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50 text-sm [color-scheme:dark]",
+                        value: "{desde}",
+                        oninput: move |e| desde.set(e.value())
                     }
-                    span { class: "absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs", "\u{1F50D}" }
+                }
+                div { class: "flex flex-col space-y-1 flex-1",
+                    label { class: "text-[10px] uppercase tracking-wider text-gray-400", "Hasta" }
+                    input {
+                        r#type: "date",
+                        class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50 text-sm [color-scheme:dark]",
+                        value: "{hasta}",
+                        oninput: move |e| hasta.set(e.value())
+                    }
+                }
+                div { class: "flex flex-col space-y-1 flex-1",
+                    label { class: "text-[10px] uppercase tracking-wider text-gray-400", "Tipo" }
+                    select {
+                        class: "w-full p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-sm",
+                        value: "{filtro_tipo}",
+                        onchange: move |e| filtro_tipo.set(e.value()),
+                        {["Todos", "Deuda", "Pago", "Abono", "Anticipado", "Ajuste", "Anulación"].iter().map(|op| rsx! {
+                            option { class: "bg-gray-900", value: "{op}", "{op}" }
+                        })}
+                    }
                 }
             }
 
@@ -1335,7 +1381,7 @@ pub fn Representantes() -> Element {
                 div { class: "flex-1 relative min-w-48",
                     input {
                         r#type: "text",
-                        class: "w-full p-2 pl-8 rounded-lg bg-white text-gray-700 border border-gray-300 outline-none focus:ring-2 focus:ring-blue-500/50 text-xs",
+                        class: "w-full p-2 pl-8 rounded-lg bg-gray-800 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50 text-xs placeholder-gray-500",
                         placeholder: "Buscar representante...",
                         value: "{busqueda}",
                         oninput: move |e| busqueda.set(e.value())
@@ -1343,12 +1389,12 @@ pub fn Representantes() -> Element {
                     span { class: "absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs", "\u{1F50D}" }
                 }
                 select {
-                    class: "p-2 rounded-lg bg-white text-gray-700 border border-gray-300 outline-none cursor-pointer text-xs",
+                    class: "p-2 rounded-lg bg-gray-800 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-xs",
                     value: "{filtro_estado}",
                     onchange: move |e| filtro_estado.set(e.value()),
-                    option { value: "Activo", "Activos" }
-                    option { value: "Inactivo", "Inactivos" }
-                    option { value: "Todos", "Todos" }
+                    option { class: "bg-gray-900", value: "Activo", "Activos" }
+                    option { class: "bg-gray-900", value: "Inactivo", "Inactivos" }
+                    option { class: "bg-gray-900", value: "Todos", "Todos" }
                 }
             }
 

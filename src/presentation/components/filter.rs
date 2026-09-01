@@ -26,21 +26,17 @@ pub fn Filter(
     };
 
     rsx! {
-        div { class: "flex flex-row items-center space-x-4 p-4 bg-white rounded-xl shadow-md border border-gray-200",
+        div { class: "flex flex-row items-center space-x-3 p-3 bg-gray-800 rounded-xl shadow-md border border-gray-700",
 
             // 1. Dropdown de parámetro (Nombre, Edad, Cinta...)
             select {
-                class: "p-2 rounded bg-gray-50 border border-gray-300 text-gray-700",
+                class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-xs",
                 value: "{options.iter().position(|(_, value)| *value == *selected_param.read()).unwrap_or(0)}",
                 onchange: move |evt| {
                     if let Ok(index) = evt.value().parse::<usize>() {
                         if let Some((_, option_value)) = options.get(index) {
                             selected_param.set(*option_value);
-                            if *option_value == Columnas::Cinta {
-                                search_text.set("".to_string());
-                            } else {
-                                search_text.set("".to_string());
-                            }
+                            search_text.set("".to_string());
                         }
                     }
                     notificar();
@@ -58,7 +54,7 @@ pub fn Filter(
             match *selected_param.read() {
                 Columnas::Cinta => rsx! {
                     select {
-                        class: "flex-1 p-2 rounded bg-gray-50 border border-gray-300 text-gray-700",
+                        class: "flex-1 p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/50 text-xs",
                         value: "{search_text}",
                         onchange: move |evt| {
                             search_text.set(evt.value());
@@ -86,10 +82,10 @@ pub fn Filter(
                         })}
                     }
                     // 3. CHECKBOX (Ubicado al lado del input/dropdown anterior)
-            label { class: "flex items-center space-x-2 text-sm font-medium text-gray-700 cursor-pointer bg-gray-50 p-2 rounded border border-gray-200",
+            label { class: "flex items-center space-x-2 text-xs font-medium text-gray-300 cursor-pointer bg-gray-900 p-2 rounded-lg border border-gray-700",
                 input {
                     r#type: "checkbox",
-                    class: "w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500",
+                    class: "w-4 h-4 text-blue-600 rounded border-gray-600 bg-gray-800 focus:ring-blue-500",
                     checked: "{con_rallita}",
                     onchange: move |_| {
                         con_rallita.set(!con_rallita.cloned());
@@ -101,10 +97,10 @@ pub fn Filter(
                 },
                 Columnas::Edad => rsx! {
                     input {
-                        class: "flex-1 p-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
+                        r#type: "number",
+                        class: "flex-1 p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none text-xs placeholder-gray-500",
                         placeholder: "Filtrar por edad...",
                         value: "{search_text}",
-                        r#type: "number",
                         oninput: move |evt| {
                             search_text.set(evt.value());
                             notificar();
@@ -113,7 +109,7 @@ pub fn Filter(
                 },
                 _ => rsx! {
                     input {
-                        class: "flex-1 p-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none",
+                        class: "flex-1 p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 focus:ring-2 focus:ring-blue-500/50 outline-none text-xs placeholder-gray-500",
                         placeholder: "{placeholder}",
                         value: "{search_text}",
                         oninput: move |evt| {
@@ -123,8 +119,6 @@ pub fn Filter(
                     }
                 }
             }
-
-
         }
     }
 }
