@@ -1,6 +1,6 @@
 [package]
 name = "BudoDB"
-version = "0.0.1-beta"
+version = "0.0.2-beta"
 authors = ["Diego <diegogoitiazx1@gmail.com>"]
 edition = "2021"
 homepage = "https://diegogoitia-dev.onrender.com"

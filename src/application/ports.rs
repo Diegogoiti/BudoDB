@@ -43,6 +43,8 @@ pub trait AlumnoRepository: Send + Sync {
         rallita: bool,
     ) -> Result<(), ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+    fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+    fn activar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 
 /// Puerto de persistencia de representantes.
@@ -51,6 +53,8 @@ pub trait RepresentanteRepository: Send + Sync {
     fn fetch_all(&self) -> Result<Vec<Representante>, ErrorRepositorio>;
     fn update(&self, representante: &Representante) -> Result<(), ErrorRepositorio>;
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+    fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
+    fn activar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio>;
 }
 
 /// Puerto de persistencia de pagos de mensualidad.

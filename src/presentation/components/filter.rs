@@ -13,13 +13,7 @@ pub fn Filter(
     let cintas = Cintas::all_variants();
     let special_cintas = ["Azul (todos)", "Marrón (todos)"];
 
-    let mut search_text = use_signal(|| {
-        if initial_param == Columnas::Cinta {
-            cintas[0].label().to_string()
-        } else {
-            "".to_string()
-        }
-    });
+    let mut search_text = use_signal(|| "".to_string());
     let mut selected_param = use_signal(|| initial_param);
 
     // Actualizamos notificar para incluir el valor del checkbox
@@ -43,7 +37,7 @@ pub fn Filter(
                         if let Some((_, option_value)) = options.get(index) {
                             selected_param.set(*option_value);
                             if *option_value == Columnas::Cinta {
-                                search_text.set(cintas[0].label().to_string());
+                                search_text.set("".to_string());
                             } else {
                                 search_text.set("".to_string());
                             }

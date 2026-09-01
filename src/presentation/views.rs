@@ -3,7 +3,7 @@
 
 use crate::application::dto::{AlumnoVista, DatosAlumno, DatosPago, DatosRepresentante, DeudaVista, HistorialPagoVista, PagoVista};
 use crate::application::validation::*;
-use crate::domain::{EstadoDeuda, EstadoPago, MetodoPago};
+use crate::domain::{EstadoDeuda, EstadoPago, MetodoPago, Representante};
 use crate::presentation::components::datatable::{DataTable, HeaderColumn, RowKeyFn, RenderRowFn};
 use crate::presentation::components::filter::Filter;
 use crate::presentation::components::form::Form;
@@ -68,6 +68,7 @@ pub fn Alumnos() -> Element {
 
     let mut busqueda = use_signal(|| (Columnas::Nombre, String::new()));
     let mut filtro = use_signal(|| (Columnas::Cinta, String::new(), false));
+    let mut filtro_estado = use_signal(|| "Activo".to_string());
     let mut alumnos_filtrados = use_signal(|| estado.read().alumnos.clone());
 
     {
@@ -76,8 +77,17 @@ pub fn Alumnos() -> Element {
             let app = estado.read();
             let (col_buscar, texto) = busqueda.read().clone();
             let (col_filtro, valor_filtro, solo_rallita) = filtro.read().clone();
+            let estado_filtro = filtro_estado.read().clone();
             let base = app.buscar_alumnos(col_buscar, &texto);
-            alumnos_filtrados.set(app.filtrar_lista(base, col_filtro, valor_filtro, solo_rallita));
+            let filtrados = app.filtrar_lista(base, col_filtro, valor_filtro, solo_rallita);
+            let resultado: Vec<_> = filtrados.into_iter().filter(|v| {
+                match estado_filtro.as_str() {
+                    "Activo" => v.alumno.estado_id == 1,
+                    "Inactivo" => v.alumno.estado_id == 2,
+                    _ => true,
+                }
+            }).collect();
+            alumnos_filtrados.set(resultado);
         });
     }
 
@@ -117,7 +127,7 @@ pub fn Alumnos() -> Element {
             }
 
             // ── Barra superior: búsqueda + filtro ──
-            div { class: "grid grid-cols-2 gap-4",
+            div { class: "flex flex-wrap gap-3 items-center",
                 SearchBar {
                     on_input: move |data| busqueda.set(data),
                     options: vec![
@@ -138,6 +148,14 @@ pub fn Alumnos() -> Element {
                     placeholder: "Filtrar alumnos...".to_string(),
                     initial_param: Columnas::Cinta,
                 }
+                select {
+                    class: "p-2 rounded-lg bg-white text-gray-700 border border-gray-300 outline-none cursor-pointer text-xs",
+                    value: "{filtro_estado}",
+                    onchange: move |e| filtro_estado.set(e.value()),
+                    option { value: "Activo", "Activos" }
+                    option { value: "Inactivo", "Inactivos" }
+                    option { value: "Todos", "Todos" }
+                }
             }
 
             // ── Tabla de datos ──
@@ -150,7 +168,7 @@ pub fn Alumnos() -> Element {
                 aplicar_color_seleccion: true,
                 single_select: false,
                 checkbox: true,
-                on_doble_click: move |_| modal_activo.set(Some(ModalAlumno::Editar)),
+                on_doble_click: move |_| {},
             }
 
             div { class: "flex justify-between items-center",
@@ -198,9 +216,22 @@ pub fn Alumnos() -> Element {
                         "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
                     },
                     disabled: !hay_seleccion,
-                    title: if hay_seleccion { "Eliminar a los seleccionados" } else { "Seleccione al menos 1 alumno" },
+                    title: if hay_seleccion { "Desactivar los seleccionados" } else { "Seleccione al menos 1 alumno" },
                     onclick: move |_| modal_activo.set(Some(ModalAlumno::Eliminar)),
-                    "🗑️ Eliminar"
+                    "🚫 Desactivar"
+                }
+                button {
+                    class: if hay_seleccion {
+                        "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                    } else {
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
+                    },
+                    disabled: !hay_seleccion,
+                    title: if hay_seleccion { "Activar los seleccionados" } else { "Seleccione al menos 1 alumno" },
+                    onclick: move |_| {
+                        let _ = estado.write().activar_seleccionados();
+                    },
+                    "✅ Activar"
                 }
                 button {
                     class: "px-5 py-2.5 bg-blue-800 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
@@ -403,10 +434,10 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
     };
 
     rsx! {
-        ModalBase { titulo: "🗑️ Eliminar Alumnos".to_string(), on_cerrar,
+        ModalBase { titulo: "🚫 Desactivar Alumnos".to_string(), on_cerrar,
             div { class: "space-y-4",
                 p { class: "text-sm text-gray-400",
-                    "Se eliminarán {seleccionados.len()} alumno(s). Esta acción no se puede deshacer."
+                    "Se desactivarán {seleccionados.len()} alumno(s). Podrás reactivarlos desde los filtros."
                 }
                 div { class: "max-h-60 overflow-auto rounded-lg border border-gray-700 divide-y divide-gray-700",
                     {seleccionados.iter().map(|v| rsx! {
@@ -421,10 +452,10 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
                 button {
                     class: "w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 active:scale-[0.98] transition-all cursor-pointer",
                     onclick: move |_| {
-                        let _ = estado.write().eliminar_seleccionados();
+                        let _ = estado.write().desactivar_seleccionados();
                         on_cerrar.call(());
                     },
-                    "Eliminar definitivamente"
+                    "Desactivar"
                 }
             }
         }
@@ -1213,6 +1244,346 @@ fn HistorialTab() -> Element {
                     span { class: "text-[11px] text-red-400",
                         "{num_anulaciones} anulacion(es)"
                     }
+                }
+            }
+        }
+    }
+}
+
+
+// Panel de Ajustes
+// ═══════════════════════════════════════════════════════════════
+
+// =====================================================
+// Pestaña Representantes
+// =====================================================
+
+static REP_COLUMNS: &[HeaderColumn] = &[
+    HeaderColumn { header: "Nombre", class: Some("font-bold text-white whitespace-nowrap") },
+    HeaderColumn { header: "Telefono", class: Some("text-blue-400 font-mono whitespace-nowrap") },
+    HeaderColumn { header: "Estado", class: Some("text-center") },
+];
+
+fn rep_key(row: &Representante) -> usize {
+    row.id
+}
+
+fn render_rep_row(vista: &Representante, _estado: Signal<my_app::MyApp>) -> Element {
+    let (etiqueta, clases) = if vista.estado_id == 1 {
+        ("Activo", "bg-emerald-900 text-emerald-300")
+    } else {
+        ("Inactivo", "bg-gray-700 text-gray-400")
+    };
+    rsx! {
+        td { class: "px-4 py-3 font-bold text-white whitespace-nowrap", "{vista.nombre}" }
+        td { class: "px-4 py-3 text-blue-400 font-mono whitespace-nowrap", "{vista.numero_contacto}" }
+        td { class: "px-4 py-3 text-center",
+            span { class: "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {clases}", "{etiqueta}" }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum ModalRep {
+    Nuevo,
+    Editar,
+}
+
+#[component]
+pub fn Representantes() -> Element {
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
+    let mut modal_activo = use_signal(|| None::<ModalRep>);
+    let mut edit_id = use_signal(|| 0usize);
+    let mut busqueda = use_signal(String::new);
+    let mut filtro_estado = use_signal(|| "Activo".to_string());
+
+    let seleccionados = estado.read().seleccionados.clone();
+    let total_seleccionados = seleccionados.len();
+    let hay_seleccion = total_seleccionados > 0;
+    let uno_seleccionado = total_seleccionados == 1;
+
+    let reps_filtrados: Vec<Representante> = {
+        let app = estado.read();
+        let q = busqueda.read().to_lowercase();
+        let estado_filtro = filtro_estado.read().clone();
+        app.representantes.iter().filter(|r| {
+            let match_nombre = q.is_empty() || r.nombre.to_lowercase().contains(&q) || r.numero_contacto.contains(&q);
+            let match_estado = match estado_filtro.as_str() {
+                "Activo" => r.estado_id == 1,
+                "Inactivo" => r.estado_id == 2,
+                _ => true,
+            };
+            match_nombre && match_estado
+        }).cloned().collect()
+    };
+
+    rsx! {
+        div { class: "flex flex-col h-full space-y-4 overflow-auto",
+
+            // ── Encabezado ──
+            div { class: "flex items-center justify-between py-1",
+                div {
+                    h2 { class: "text-3xl font-bold text-gray-800", "👤 Representantes" }
+                    p { class: "text-gray-500 text-sm mt-1",
+                        "Gestion de representantes responsables."
+                    }
+                }
+            }
+
+            // ── Barra de búsqueda + filtro ──
+            div { class: "flex flex-wrap gap-3 items-center",
+                div { class: "flex-1 relative min-w-48",
+                    input {
+                        r#type: "text",
+                        class: "w-full p-2 pl-8 rounded-lg bg-white text-gray-700 border border-gray-300 outline-none focus:ring-2 focus:ring-blue-500/50 text-xs",
+                        placeholder: "Buscar representante...",
+                        value: "{busqueda}",
+                        oninput: move |e| busqueda.set(e.value())
+                    }
+                    span { class: "absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs", "\u{1F50D}" }
+                }
+                select {
+                    class: "p-2 rounded-lg bg-white text-gray-700 border border-gray-300 outline-none cursor-pointer text-xs",
+                    value: "{filtro_estado}",
+                    onchange: move |e| filtro_estado.set(e.value()),
+                    option { value: "Activo", "Activos" }
+                    option { value: "Inactivo", "Inactivos" }
+                    option { value: "Todos", "Todos" }
+                }
+            }
+
+            // ── Tabla ──
+            DataTable {
+                data: Signal::new(reps_filtrados.clone()),
+                header_columns: REP_COLUMNS,
+                row_key: RowKeyFn(rep_key),
+                render_row: RenderRowFn(render_rep_row),
+                estado,
+                aplicar_color_seleccion: true,
+                single_select: false,
+                checkbox: true,
+                on_doble_click: move |_| {},
+            }
+
+            div { class: "flex justify-between items-center",
+                div { class: "text-gray-500 text-xs",
+                    "Mostrando {reps_filtrados.len()} representante(s)"
+                }
+                div { class: "text-gray-500 text-xs",
+                    "seleccionados: {total_seleccionados}"
+                }
+            }
+
+            // ── Acciones ──
+            div { class: "flex flex-wrap justify-center gap-3 pt-1",
+                button {
+                    class: "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
+                    onclick: move |_| modal_activo.set(Some(ModalRep::Nuevo)),
+                    "＋ Nuevo Representante"
+                }
+                button {
+                    class: if uno_seleccionado {
+                        "px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                    } else {
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
+                    },
+                    disabled: !uno_seleccionado,
+                    onclick: move |_| {
+                        if let Some(&id) = estado.read().seleccionados.iter().next() {
+                            edit_id.set(id);
+                            modal_activo.set(Some(ModalRep::Editar));
+                        }
+                    },
+                    "✏️ Editar"
+                }
+                button {
+                    class: if hay_seleccion {
+                        "px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                    } else {
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
+                    },
+                    disabled: !hay_seleccion,
+                    onclick: move |_| {
+                        let ids: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+                        for id in ids {
+                            let _ = estado.write().desactivar_representante(id);
+                        }
+                        estado.write().seleccionados.clear();
+                    },
+                    "🚫 Desactivar"
+                }
+                button {
+                    class: if hay_seleccion {
+                        "px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                    } else {
+                        "px-5 py-2.5 bg-gray-400 text-gray-700 font-bold rounded-lg cursor-not-allowed text-sm"
+                    },
+                    disabled: !hay_seleccion,
+                    onclick: move |_| {
+                        let ids: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+                        for id in ids {
+                            let _ = estado.write().activar_representante(id);
+                        }
+                        estado.write().seleccionados.clear();
+                    },
+                    "✅ Activar"
+                }
+            }
+        }
+
+        // ── Modales ──
+        match modal_activo.read().clone() {
+            Some(ModalRep::Nuevo) => rsx! {
+                ModalRepNuevo { on_cerrar: move |_| modal_activo.set(None) }
+            },
+            Some(ModalRep::Editar) => rsx! {
+                ModalRepEditar { id: edit_id.read().clone(), on_cerrar: move |_| modal_activo.set(None) }
+            },
+            None => rsx! {},
+        }
+    }
+}
+
+#[component]
+fn ModalRepNuevo(on_cerrar: EventHandler<()>) -> Element {
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
+    let mut nombre = use_signal(String::new);
+    let mut contacto = use_signal(String::new);
+    let mut msg = use_signal(|| (String::new(), false));
+
+    let formulario_ok = !nombre.read().is_empty() && contacto_valido(&contacto.read());
+
+    rsx! {
+        ModalBase { titulo: "👤 Nuevo Representante".to_string(), on_cerrar,
+            div { class: "space-y-3",
+                div { class: "flex flex-col space-y-0.5",
+                    label { class: "text-xs font-semibold text-gray-400", "Nombre completo" }
+                    input {
+                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        placeholder: "Ej: Maria Garcia",
+                        value: "{nombre}",
+                        oninput: move |e| nombre.set(e.value())
+                    }
+                }
+                div { class: "flex flex-col space-y-0.5",
+                    label { class: "text-xs font-semibold text-gray-400", "Telefono" }
+                    input {
+                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        placeholder: "0412-0000000",
+                        value: "{contacto}",
+                        oninput: move |e| {
+                            let mut val = e.value();
+                            val.retain(|c| c.is_ascii_digit());
+                            if val.len() > 4 { val.insert(4, '-'); }
+                            val.truncate(12);
+                            contacto.set(val);
+                        }
+                    }
+                }
+                if !msg.read().0.is_empty() {
+                    p { class: if msg.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
+                        "{msg.read().0}" }
+                }
+                button {
+                    class: if formulario_ok {
+                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+                    } else {
+                        "w-full py-3 bg-gray-700 text-gray-400 font-bold rounded-xl cursor-pointer"
+                    },
+                    disabled: !formulario_ok,
+                    onclick: move |_| {
+                        let datos = DatosRepresentante {
+                            nombre: nombre.read().clone(),
+                            numero_contacto: contacto.read().clone(),
+                        };
+                        match estado.write().agregar_representante(datos) {
+                            Ok(()) => {
+                                nombre.set(String::new());
+                                contacto.set(String::new());
+                                msg.set(("Representante registrado.".to_string(), false));
+                            }
+                            Err(e) => msg.set((e.to_string(), true)),
+                        }
+                    },
+                    "Guardar"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ModalRepEditar(id: usize, on_cerrar: EventHandler<()>) -> Element {
+    let mut estado = use_context::<Signal<my_app::MyApp>>();
+    let mut nombre = use_signal(String::new);
+    let mut contacto = use_signal(String::new);
+    let mut msg = use_signal(|| (String::new(), false));
+
+    {
+        let estado = estado.clone();
+        let rep_id = id;
+        use_effect(move || {
+            let app = estado.read();
+            if let Some(rep) = app.representantes.iter().find(|r| r.id == rep_id) {
+                nombre.set(rep.nombre.clone());
+                contacto.set(rep.numero_contacto.clone());
+            }
+        });
+    }
+
+    let formulario_ok = !nombre.read().is_empty() && contacto_valido(&contacto.read());
+
+    rsx! {
+        ModalBase { titulo: "✏️ Editar Representante".to_string(), on_cerrar,
+            div { class: "space-y-3",
+                div { class: "flex flex-col space-y-0.5",
+                    label { class: "text-xs font-semibold text-gray-400", "Nombre completo" }
+                    input {
+                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        placeholder: "Ej: Maria Garcia",
+                        value: "{nombre}",
+                        oninput: move |e| nombre.set(e.value())
+                    }
+                }
+                div { class: "flex flex-col space-y-0.5",
+                    label { class: "text-xs font-semibold text-gray-400", "Telefono" }
+                    input {
+                        class: "p-2 rounded-lg bg-gray-900 text-gray-100 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/50",
+                        placeholder: "0412-0000000",
+                        value: "{contacto}",
+                        oninput: move |e| {
+                            let mut val = e.value();
+                            val.retain(|c| c.is_ascii_digit());
+                            if val.len() > 4 { val.insert(4, '-'); }
+                            val.truncate(12);
+                            contacto.set(val);
+                        }
+                    }
+                }
+                if !msg.read().0.is_empty() {
+                    p { class: if msg.read().1 { "text-xs text-red-400" } else { "text-xs text-emerald-400" },
+                        "{msg.read().0}" }
+                }
+                button {
+                    class: if formulario_ok {
+                        "w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+                    } else {
+                        "w-full py-3 bg-gray-700 text-gray-400 font-bold rounded-xl cursor-pointer"
+                    },
+                    disabled: !formulario_ok,
+                    onclick: move |_| {
+                        let datos = DatosRepresentante {
+                            nombre: nombre.read().clone(),
+                            numero_contacto: contacto.read().clone(),
+                        };
+                        match estado.write().actualizar_representante(id, datos) {
+                            Ok(()) => {
+                                msg.set(("Representante actualizado.".to_string(), false));
+                            }
+                            Err(e) => msg.set((e.to_string(), true)),
+                        }
+                    },
+                    "Guardar cambios"
                 }
             }
         }

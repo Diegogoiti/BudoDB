@@ -17,6 +17,11 @@ pub fn Sidebar() -> Element {
                         label: "Pagos",
                     }
                     SidebarItem {
+                        to: Route::Representantes {},
+                        icon: "👤",
+                        label: "Representantes",
+                    }
+                    SidebarItem {
                         to: Route::Ajustes {},
                         icon: "⚙️",
                         label: "Ajustes",
@@ -24,7 +29,7 @@ pub fn Sidebar() -> Element {
                 }
                 div { class: "p-4 bg-gray-950 text-center border-t border-gray-800",
                     p { class: "text-[10px] text-gray-500 tracking-widest",
-                        "BudoDB V0.0.1-BETA"
+                        "BudoDB V0.0.2-BETA"
                     }
                     p { class: "text-[10px] text-gray-500 tracking-widest",
                         "© 2026 Diego Andrés Goitia Márquez. All rights reserved."
@@ -36,7 +41,7 @@ pub fn Sidebar() -> Element {
             }
             // El "hueco" donde se verán las vistas
             main { class: "flex-1 h-full flex flex-col bg-gray-100 overflow-hidden",
-                div { class: "p-8 w-full h-full flex flex-col", Outlet::<Route> {} }
+                div { class: "p-4 w-full h-full flex flex-col overflow-auto", Outlet::<Route> {} }
             }
         }
     }

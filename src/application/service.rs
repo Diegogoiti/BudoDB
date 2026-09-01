@@ -45,6 +45,18 @@ impl ServicioAlumnos {
         self.logger.debug("Alumnos marcados como eliminados");
         Ok(())
     }
+    pub fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorAplicacion> {
+        if ids.is_empty() { return Ok(()); }
+        self.repositorio.desactivar(ids)?;
+        self.logger.debug("Alumnos desactivados");
+        Ok(())
+    }
+    pub fn activar(&self, ids: HashSet<usize>) -> Result<(), ErrorAplicacion> {
+        if ids.is_empty() { return Ok(()); }
+        self.repositorio.activar(ids)?;
+        self.logger.debug("Alumnos activados");
+        Ok(())
+    }
 }
 
 pub fn armar_vistas_alumnos(alumnos: &[Alumno], representantes: &[Representante]) -> Vec<AlumnoVista> {

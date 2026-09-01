@@ -13,6 +13,8 @@ pub enum Route {
     Alumnos {},
     #[route("/pagos")]
     Pagos {},
+    #[route("/representantes")]
+    Representantes {},
     #[route("/ajustes")]
     Ajustes {},
 }

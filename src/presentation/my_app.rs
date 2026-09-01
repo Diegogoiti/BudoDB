@@ -202,10 +202,21 @@ impl MyApp {
         Ok(())
     }
 
-    /// Caso de uso: eliminar a los seleccionados, limpiar la selección y refrescar.
-    pub fn eliminar_seleccionados(&mut self) -> Result<(), ErrorAplicacion> {
+    /// Caso de uso: desactivar a los seleccionados, limpiar la selección y refrescar.
+    /// Si todos los alumnos de un representante quedan inactivos, desactivarlo también.
+    pub fn desactivar_seleccionados(&mut self) -> Result<(), ErrorAplicacion> {
         let ids = self.seleccionados.clone();
-        self.servicio_alumnos.eliminar(ids)?;
+        self.servicio_alumnos.desactivar(ids)?;
+        self.seleccionados.clear();
+        self.refrescar();
+        self.verificar_representantes_cascade();
+        Ok(())
+    }
+
+    /// Caso de uso: activar a los seleccionados.
+    pub fn activar_seleccionados(&mut self) -> Result<(), ErrorAplicacion> {
+        let ids = self.seleccionados.clone();
+        self.servicio_alumnos.activar(ids)?;
         self.seleccionados.clear();
         self.refrescar();
         Ok(())
@@ -227,6 +238,45 @@ impl MyApp {
         self.servicio_representantes.actualizar(id, datos)?;
         self.refrescar();
         Ok(())
+    }
+
+    pub fn desactivar_representante(&mut self, id: usize) -> Result<(), ErrorAplicacion> {
+        self.servicio_representantes.desactivar(HashSet::from([id]))?;
+        let alumnos_ids: HashSet<usize> = self.alumnos.iter()
+            .filter(|v| v.alumno.representante_id == id && v.alumno.estado_id == 1)
+            .map(|v| v.alumno.id)
+            .collect();
+        if !alumnos_ids.is_empty() {
+            self.servicio_alumnos.desactivar(alumnos_ids)?;
+        }
+        self.refrescar();
+        Ok(())
+    }
+
+    pub fn activar_representante(&mut self, id: usize) -> Result<(), ErrorAplicacion> {
+        self.servicio_representantes.activar(HashSet::from([id]))?;
+        self.refrescar();
+        Ok(())
+    }
+
+    /// Verifica si algún representante tiene todos sus alumnos inactivos y lo desactiva.
+    fn verificar_representantes_cascade(&mut self) {
+        let mut reps_a_desactivar: HashSet<usize> = HashSet::new();
+        for rep in &self.representantes {
+            if rep.estado_id != 1 { continue; }
+            let tiene_activo = self.alumnos.iter().any(|v|
+                v.alumno.representante_id == rep.id && v.alumno.estado_id == 1
+            );
+            if !tiene_activo {
+                reps_a_desactivar.insert(rep.id);
+            }
+        }
+        if !reps_a_desactivar.is_empty() {
+            for id in &reps_a_desactivar {
+                let _ = self.servicio_representantes.desactivar(HashSet::from([*id]));
+            }
+            self.refrescar();
+        }
     }
 
     // ---------- Casos de uso de pagos ----------

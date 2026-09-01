@@ -350,6 +350,26 @@ impl AlumnoRepository for SqliteRepositorio {
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
         self.borrar_logicamente("alumnos", ids, "alumnos")
     }
+
+    fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        if ids.is_empty() { return Ok(()); }
+        let comodines: String = std::iter::repeat("?").take(ids.len()).collect::<Vec<_>>().join(", ");
+        let query = format!("UPDATE alumnos SET estado_id = 2 WHERE id IN ({comodines}) AND eliminado = 0");
+        let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(ids.len());
+        for id in &ids { parametros.push(id); }
+        self.lock().execute(&query, params_from_iter(parametros)).map_err(error_consulta)?;
+        Ok(())
+    }
+
+    fn activar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        if ids.is_empty() { return Ok(()); }
+        let comodines: String = std::iter::repeat("?").take(ids.len()).collect::<Vec<_>>().join(", ");
+        let query = format!("UPDATE alumnos SET estado_id = 1 WHERE id IN ({comodines}) AND eliminado = 0");
+        let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(ids.len());
+        for id in &ids { parametros.push(id); }
+        self.lock().execute(&query, params_from_iter(parametros)).map_err(error_consulta)?;
+        Ok(())
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -388,6 +408,26 @@ impl RepresentanteRepository for SqliteRepositorio {
 
     fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
         self.borrar_logicamente("representantes", ids, "representantes")
+    }
+
+    fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        if ids.is_empty() { return Ok(()); }
+        let comodines: String = std::iter::repeat("?").take(ids.len()).collect::<Vec<_>>().join(", ");
+        let query = format!("UPDATE representantes SET estado_id = 2 WHERE id IN ({comodines}) AND eliminado = 0");
+        let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(ids.len());
+        for id in &ids { parametros.push(id); }
+        self.lock().execute(&query, params_from_iter(parametros)).map_err(error_consulta)?;
+        Ok(())
+    }
+
+    fn activar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+        if ids.is_empty() { return Ok(()); }
+        let comodines: String = std::iter::repeat("?").take(ids.len()).collect::<Vec<_>>().join(", ");
+        let query = format!("UPDATE representantes SET estado_id = 1 WHERE id IN ({comodines}) AND eliminado = 0");
+        let mut parametros: Vec<&dyn ToSql> = Vec::with_capacity(ids.len());
+        for id in &ids { parametros.push(id); }
+        self.lock().execute(&query, params_from_iter(parametros)).map_err(error_consulta)?;
+        Ok(())
     }
 }
 

@@ -64,6 +64,26 @@ impl ServicioRepresentantes {
         self.logger.debug("Representantes marcados como eliminados");
         Ok(())
     }
+
+    /// Desactivar: cambia estado_id a 2 (Inactivo).
+    pub fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorAplicacion> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.repositorio.desactivar(ids)?;
+        self.logger.debug("Representantes desactivados");
+        Ok(())
+    }
+
+    /// Activar: cambia estado_id a 1 (Activo).
+    pub fn activar(&self, ids: HashSet<usize>) -> Result<(), ErrorAplicacion> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.repositorio.activar(ids)?;
+        self.logger.debug("Representantes activados");
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -114,6 +134,15 @@ mod pruebas {
 
         fn delete(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
             *self.eliminados.lock().unwrap() = Some(ids);
+            Ok(())
+        }
+
+        fn desactivar(&self, ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
+            *self.eliminados.lock().unwrap() = Some(ids);
+            Ok(())
+        }
+
+        fn activar(&self, _ids: HashSet<usize>) -> Result<(), ErrorRepositorio> {
             Ok(())
         }
     }
