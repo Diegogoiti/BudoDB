@@ -91,7 +91,7 @@ pub fn Alumnos() -> Element {
         });
     }
 
-    let total_seleccionados = estado.read().seleccionados.len();
+    let total_seleccionados = estado.read().seleccion_alumnos.len();
     let hay_seleccion = total_seleccionados > 0;
     let uno_seleccionado = total_seleccionados == 1;
 
@@ -99,7 +99,7 @@ pub fn Alumnos() -> Element {
         && alumnos_filtrados
             .read()
             .iter()
-            .all(|v| estado.read().seleccionados.contains(&v.alumno.id));
+            .all(|v| estado.read().seleccion_alumnos.contains(&v.alumno.id));
     let texto_boton = if todos_seleccionados {
         "Deseleccionar todos"
     } else {
@@ -160,7 +160,7 @@ pub fn Alumnos() -> Element {
 
             // ── Tabla de datos ──
             DataTable {
-                data: alumnos_filtrados,
+                data: alumnos_filtrados.read().clone(),
                 header_columns: ALUMNO_COLUMNS,
                 row_key: RowKeyFn(alumno_key),
                 render_row: RenderRowFn(render_alumno_row),
@@ -169,6 +169,7 @@ pub fn Alumnos() -> Element {
                 single_select: false,
                 checkbox: true,
                 on_doble_click: move |_| {},
+                contexto: "alumnos".to_string(),
             }
 
             div { class: "flex justify-between items-center",
@@ -336,7 +337,7 @@ fn ModalEditar(on_cerrar: EventHandler<()>) -> Element {
         let estado = estado.clone();
         use_effect(move || {
             let app = estado.read();
-            if let Some(id) = app.seleccionados.iter().copied().next() {
+            if let Some(id) = app.seleccion_alumnos.iter().copied().next() {
                 let alumno = app.get_alumno_by_id(id);
                 nombre.set(alumno.nombre.clone());
                 fecha_nac.set(alumno.fecha_de_nacimiento.clone());
@@ -347,7 +348,7 @@ fn ModalEditar(on_cerrar: EventHandler<()>) -> Element {
         });
     }
 
-    let id = estado.read().seleccionados.iter().copied().next();
+    let id = estado.read().seleccion_alumnos.iter().copied().next();
     let fecha_valida = es_fecha_valida_form(&fecha_nac.read());
     let formulario_valido = (
         !nombre.read().is_empty(),
@@ -390,7 +391,7 @@ fn ModalPromover(on_cerrar: EventHandler<()>) -> Element {
         let app = estado.read();
         app.alumnos
             .iter()
-            .filter(|v| app.seleccionados.contains(&v.alumno.id))
+            .filter(|v| app.seleccion_alumnos.contains(&v.alumno.id))
             .map(|v| v.alumno.nombre.clone())
             .collect()
     };
@@ -435,7 +436,7 @@ fn ModalEliminar(on_cerrar: EventHandler<()>) -> Element {
         let app = estado.read();
         app.alumnos
             .iter()
-            .filter(|v| app.seleccionados.contains(&v.alumno.id))
+            .filter(|v| app.seleccion_alumnos.contains(&v.alumno.id))
             .cloned()
             .collect()
     };
@@ -677,8 +678,6 @@ pub fn Pagos() -> Element {
 struct DeudaRow {
     vista: DeudaVista,
     ultimo: Option<PagoVista>,
-    puede_reversar: bool,
-    ultimo_id: usize,
 }
 
 static DEUDAS_COLUMNS: &[HeaderColumn] = &[
@@ -689,15 +688,13 @@ static DEUDAS_COLUMNS: &[HeaderColumn] = &[
     HeaderColumn { header: "Saldo", class: Some("text-right") },
     HeaderColumn { header: "Estado", class: Some("text-center") },
     HeaderColumn { header: "Ultimo pago", class: Some("text-right") },
-    HeaderColumn { header: "Accion", class: Some("text-center") },
 ];
 
 fn deuda_key(row: &DeudaRow) -> usize {
     row.vista.deuda.representante_id
 }
 
-fn render_deuda_row(vista: &DeudaRow, mut estado: Signal<my_app::MyApp>) -> Element {
-    let ultimo_id = vista.ultimo_id;
+fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element {
     let saldo_texto = fmt_monto(vista.vista.deuda.saldo());
     let pct = vista.vista.deuda.porcentaje();
     let (etiqueta, clases) = badge_estado_deuda(&vista.vista.estado);
@@ -728,17 +725,6 @@ fn render_deuda_row(vista: &DeudaRow, mut estado: Signal<my_app::MyApp>) -> Elem
                 span { class: "text-gray-500", "{metodo_label(&pv.metodo)}" }
             } else {
                 span { class: "text-gray-600", "-" }
-            }
-        }
-        td { class: "px-3 py-2 text-center",
-            if vista.puede_reversar {
-                button {
-                    class: "px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-red-400 hover:text-white hover:border-red-500 font-bold text-[9px] transition-colors cursor-pointer",
-                        onclick: move |_| {
-                            let _ = estado.write().reversar_pago(ultimo_id);
-                        },
-                    "Revertir"
-                }
             }
         }
     }
@@ -798,7 +784,6 @@ fn ConsultaTab() -> Element {
     let mut pago_monto = use_signal(String::new);
     let mut pago_metodo_id = use_signal(|| 1i32);
     let mut pago_msg = use_signal(|| (String::new(), false));
-    let mut msg_accion = use_signal(|| (String::new(), false));
 
     let (etiqueta_mes, total_deudas, total_abonado, pagados, parciales, pendientes) = {
         let e = estado.read();
@@ -817,8 +802,19 @@ fn ConsultaTab() -> Element {
     let all_pagos = estado.read().pagos.clone();
     let representantes = estado.read().representantes.clone();
     let hay_pendientes = all_deudas.iter().any(|v| v.estado != EstadoDeuda::Pagada);
-    let hay_rep_seleccionado = estado.read().seleccionados.len() == 1;
+    let hay_rep_seleccionado = estado.read().seleccion_consulta.len() == 1;
     let puede_registrar_pago = hay_pendientes && hay_rep_seleccionado;
+
+    // Lógica para botón "Revertir pago": seleccionado + último pago completado
+    let rep_seleccionado_id = if hay_rep_seleccionado {
+        Some(*estado.read().seleccion_consulta.iter().next().unwrap())
+    } else {
+        None
+    };
+    let reversar_pago_data: Option<PagoVista> = rep_seleccionado_id.and_then(|id| {
+        all_pagos.iter().rev().find(|p| p.pago.representante_id == id && p.estado == EstadoPago::Completado).cloned()
+    });
+    let puede_reversar_pago = reversar_pago_data.is_some();
 
     let pct_global = if total_deudas > 0.0 {
         (total_abonado / total_deudas * 100.0).min(100.0)
@@ -857,15 +853,13 @@ fn ConsultaTab() -> Element {
 
     let deudas_rows: Vec<DeudaRow> = deudas.iter().map(|v| {
         let ultimo = ultimo_pago_por_rep.get(&v.deuda.representante_id).cloned();
-        let puede_reversar = ultimo.map_or(false, |p| p.estado == EstadoPago::Completado);
-        let ultimo_id = ultimo.map_or(0, |p| p.pago.id);
-        DeudaRow { vista: v.clone(), ultimo: ultimo.cloned(), puede_reversar, ultimo_id }
+        DeudaRow { vista: v.clone(), ultimo: ultimo.cloned() }
     }).collect();
 
     {
         let mut estado = estado.clone();
         use_effect(move || {
-            let seleccionados: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+            let seleccionados: Vec<usize> = estado.read().seleccion_consulta.iter().copied().collect();
             let rep_id = if seleccionados.len() == 1 {
                 Some(seleccionados[0])
             } else {
@@ -957,7 +951,7 @@ fn ConsultaTab() -> Element {
 
             // -- Tabla unificada --
             DataTable {
-                data: Signal::new(deudas_rows),
+                data: deudas_rows,
                 header_columns: DEUDAS_COLUMNS,
                 row_key: RowKeyFn(deuda_key),
                 render_row: RenderRowFn(render_deuda_row),
@@ -966,6 +960,7 @@ fn ConsultaTab() -> Element {
                 single_select: true,
                 checkbox: true,
                 on_doble_click: move |_| {},
+                contexto: "consulta".to_string(),
             }
 
             // -- Info --
@@ -973,32 +968,10 @@ fn ConsultaTab() -> Element {
                 div { class: "text-gray-500 text-xs",
                     "Mostrando {deudas.len()} de {all_deudas.len()} deudas"
                 }
-                if !msg_accion.read().0.is_empty() {
-                    span {
-                        class: if msg_accion.read().1 { "text-[11px] text-red-400" } else { "text-[11px] text-emerald-400" },
-                        "{msg_accion.read().0}"
-                    }
-                }
             }
 
             // -- Acciones --
             div { class: "flex justify-center gap-3 pt-1",
-                button {
-                    class: "px-5 py-2.5 bg-blue-600 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
-                    onclick: move |_| {
-                        match estado.write().crear_deudas_del_mes() {
-                            Ok(creadas) => {
-                                if creadas == 0 {
-                                    msg_accion.set(("Todos ya tienen deuda este mes.".to_string(), false));
-                                } else {
-                                    msg_accion.set((format!("Se crearon {creadas} deudas."), false));
-                                }
-                            }
-                            Err(error) => msg_accion.set((error.to_string(), true)),
-                        }
-                    },
-                    "＋ Crear deudas del mes"
-                }
                 button {
                     class: if puede_registrar_pago {
                         "px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
@@ -1007,7 +980,7 @@ fn ConsultaTab() -> Element {
                     },
                     disabled: !puede_registrar_pago,
                     onclick: move |_| {
-                        let seleccionados: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+                        let seleccionados: Vec<usize> = estado.read().seleccion_consulta.iter().copied().collect();
                         pago_representante_id.set(seleccionados[0]);
                         pago_monto.set(String::new());
                         pago_metodo_id.set(1);
@@ -1015,6 +988,26 @@ fn ConsultaTab() -> Element {
                         modal_pago.set(true);
                     },
                     "💰 Registrar pago"
+                }
+                button {
+                    class: if puede_reversar_pago {
+                        "px-5 py-2.5 bg-red-600 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm"
+                    } else {
+                        "px-5 py-2.5 bg-gray-400 text-gray-800 font-bold rounded-lg cursor-not-allowed text-sm"
+                    },
+                    disabled: !puede_reversar_pago,
+                    onclick: move |_| {
+                        if let Some(pv) = &reversar_pago_data {
+                            estado.write().abrir_modal_reversar(
+                                pv.pago.id,
+                                pv.nombre_representante.clone(),
+                                pv.pago.monto_recibido,
+                                metodo_label(&pv.metodo).to_string(),
+                                pv.pago.fecha_pago.clone(),
+                            );
+                        }
+                    },
+                    "↩ Revertir pago"
                 }
             }
         }
@@ -1108,11 +1101,68 @@ fn ConsultaTab() -> Element {
                                 }
                             },
                             "Registrar"
-                        }
-                    }
                 }
             }
         }
+
+        // Modal: revertir pago
+        if estado.read().modal_reversar_activo {
+            ModalBase {
+                titulo: "⚠️ Revertir pago".to_string(),
+                ancho: Some("max-w-sm".to_string()),
+                on_cerrar: move |_| estado.write().cerrar_modal_reversar(),
+                { let e = estado.read(); rsx! {
+                    div { class: "space-y-4",
+                        div { class: "flex items-center gap-3 p-3 rounded-lg bg-gray-900 border border-gray-700",
+                            div { class: "w-9 h-9 rounded-full bg-red-600/20 text-red-400 flex items-center justify-center font-bold text-sm shrink-0",
+                                {e.reversar_rep_nombre.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_else(|| "R".to_string())}
+                            }
+                            div { class: "min-w-0",
+                                p { class: "text-sm font-bold text-white truncate", "{e.reversar_rep_nombre}" }
+                                p { class: "text-[10px] text-gray-500", "Se restaurarán los saldos de las deudas afectadas." }
+                            }
+                        }
+
+                        div { class: "grid grid-cols-2 gap-3 text-sm",
+                            div { class: "flex flex-col space-y-0.5",
+                                span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Monto" }
+                                span { class: "font-mono font-bold text-amber-400", "{fmt_monto(e.reversar_monto)}" }
+                            }
+                            div { class: "flex flex-col space-y-0.5",
+                                span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Método" }
+                                span { class: "text-gray-300", "{e.reversar_metodo}" }
+                            }
+                            div { class: "flex flex-col space-y-0.5",
+                                span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Fecha" }
+                                span { class: "text-gray-300 font-mono", "{e.reversar_fecha}" }
+                            }
+                        }
+
+                        p { class: "text-xs text-red-400/80", "Esta acción no se puede deshacer." }
+
+                        div { class: "flex gap-2 justify-end pt-1",
+                            button {
+                                class: "px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer",
+                                onclick: move |_| estado.write().cerrar_modal_reversar(),
+                                "Cancelar"
+                            }
+                            button {
+                                class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
+                                onclick: move |_| {
+                                    let pago_id = estado.read().reversar_pago_id;
+                                    let resultado = estado.write().reversar_pago(pago_id);
+                                    estado.write().cerrar_modal_reversar();
+                                    let _ = resultado;
+                                },
+                                "Revertir"
+                            }
+                        }
+                    }
+                }}
+            }
+        }
+    }
+}
     }
 }
 
@@ -1259,7 +1309,7 @@ fn HistorialTab() -> Element {
                     }
                 } else {
                     DataTable {
-                        data: Signal::new(filtrado.clone()),
+                        data: filtrado.clone(),
                         header_columns: HISTORIAL_COLUMNS,
                         row_key: RowKeyFn(historial_key),
                         render_row: RenderRowFn(render_historial_row),
@@ -1334,7 +1384,7 @@ pub fn Representantes() -> Element {
     let mut busqueda = use_signal(String::new);
     let mut filtro_estado = use_signal(|| "Activo".to_string());
 
-    let seleccionados = estado.read().seleccionados.clone();
+    let seleccionados = estado.read().seleccion_representantes.clone();
     let total_seleccionados = seleccionados.len();
     let hay_seleccion = total_seleccionados > 0;
     let uno_seleccionado = total_seleccionados == 1;
@@ -1391,7 +1441,7 @@ pub fn Representantes() -> Element {
 
             // ── Tabla ──
             DataTable {
-                data: Signal::new(reps_filtrados.clone()),
+                data: reps_filtrados.clone(),
                 header_columns: REP_COLUMNS,
                 row_key: RowKeyFn(rep_key),
                 render_row: RenderRowFn(render_rep_row),
@@ -1400,6 +1450,7 @@ pub fn Representantes() -> Element {
                 single_select: false,
                 checkbox: true,
                 on_doble_click: move |_| {},
+                contexto: "representantes".to_string(),
             }
 
             div { class: "flex justify-between items-center",
@@ -1426,7 +1477,7 @@ pub fn Representantes() -> Element {
                     },
                     disabled: !uno_seleccionado,
                     onclick: move |_| {
-                        if let Some(&id) = estado.read().seleccionados.iter().next() {
+                        if let Some(&id) = estado.read().seleccion_representantes.iter().next() {
                             edit_id.set(id);
                             modal_activo.set(Some(ModalRep::Editar));
                         }
@@ -1441,11 +1492,11 @@ pub fn Representantes() -> Element {
                     },
                     disabled: !hay_seleccion,
                     onclick: move |_| {
-                        let ids: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+                        let ids: Vec<usize> = estado.read().seleccion_representantes.iter().copied().collect();
                         for id in ids {
                             let _ = estado.write().desactivar_representante(id);
                         }
-                        estado.write().seleccionados.clear();
+                        estado.write().seleccion_representantes.clear();
                     },
                     "🚫 Desactivar"
                 }
@@ -1457,11 +1508,11 @@ pub fn Representantes() -> Element {
                     },
                     disabled: !hay_seleccion,
                     onclick: move |_| {
-                        let ids: Vec<usize> = estado.read().seleccionados.iter().copied().collect();
+                        let ids: Vec<usize> = estado.read().seleccion_representantes.iter().copied().collect();
                         for id in ids {
                             let _ = estado.write().activar_representante(id);
                         }
-                        estado.write().seleccionados.clear();
+                        estado.write().seleccion_representantes.clear();
                     },
                     "✅ Activar"
                 }

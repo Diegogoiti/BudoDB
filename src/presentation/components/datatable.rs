@@ -56,7 +56,7 @@ const FILAS_VENTANA: usize = 80;
 
 #[component]
 pub fn DataTable<T: Clone + PartialEq + 'static>(
-    data: Signal<Vec<T>>,
+    data: Vec<T>,
     header_columns: &'static [HeaderColumn],
     row_key: RowKeyFn<T>,
     render_row: RenderRowFn<T>,
@@ -65,8 +65,10 @@ pub fn DataTable<T: Clone + PartialEq + 'static>(
     checkbox: bool,
     single_select: bool,
     on_doble_click: EventHandler<()>,
+    #[props(default = "general".to_string())]
+    contexto: String,
 ) -> Element {
-    let items = data.read().clone();
+    let items = data;
     let mut scroll_y = use_signal(|| 0.0f64);
     let total = items.len();
 
@@ -128,7 +130,8 @@ pub fn DataTable<T: Clone + PartialEq + 'static>(
                     for (i, item) in ventana {
                         {
                             let key = row_key.0(&item);
-                            let es_seleccionado = estado.read().seleccionados.contains(&key);
+                            let ctx = contexto.clone();
+                            let es_seleccionado = estado.read().seleccion_get(&ctx).contains(&key);
                             let base = if aplicar_color_seleccion && es_seleccionado {
                                 "bg-blue-500 hover:bg-blue-700"
                             } else if i % 2 == 0 {
@@ -141,25 +144,31 @@ pub fn DataTable<T: Clone + PartialEq + 'static>(
                                     key: "{key}",
                                     style: "height:{ALTO_FILA_PX}px",
                                     class: { base },
-                                    onclick: move |_| {
-                                        if single_select {
-                                            estado.write().toggle_single_seleccion(key);
-                                        } else {
-                                            estado.write().toggle_seleccion(key);
+                                    onclick: {
+                                        let ctx = contexto.clone();
+                                        move |_| {
+                                            if single_select {
+                                                estado.write().toggle_single_seleccion_ctx(key, &ctx);
+                                            } else {
+                                                estado.write().toggle_seleccion_ctx(key, &ctx);
+                                            }
                                         }
                                     },
-                                    ondoubleclick: move |_| {
-                                        if !estado.read().seleccionados.contains(&key) {
-                                            estado.write().toggle_seleccion(key);
+                                    ondoubleclick: {
+                                        let ctx = contexto.clone();
+                                        move |_| {
+                                            if !estado.read().seleccion_get(&ctx).contains(&key) {
+                                                estado.write().toggle_seleccion_ctx(key, &ctx);
+                                            }
+                                            on_doble_click.call(());
                                         }
-                                        on_doble_click.call(());
                                     },
                                     if checkbox {
                                         td { class: "px-4 py-3",
                                             input {
                                                 r#type: "checkbox",
                                                 class: "w-4 h-4 rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-blue-500",
-                                                checked: estado.read().seleccionados.contains(&key),
+                                                checked: estado.read().seleccion_get(&contexto).contains(&key),
                                             }
                                         }
                                     }

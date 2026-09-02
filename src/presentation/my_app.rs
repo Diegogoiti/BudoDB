@@ -51,6 +51,17 @@ pub struct MyApp {
     /// ID del representante seleccionado en Consulta para filtrar Historial.
     pub representante_historial_id: Option<usize>,
     pub seleccionados: HashSet<usize>,
+    /// Selección independiente por contexto
+    pub seleccion_alumnos: HashSet<usize>,
+    pub seleccion_consulta: HashSet<usize>,
+    pub seleccion_representantes: HashSet<usize>,
+    /// Estado del modal de reversión de pago.
+    pub modal_reversar_activo: bool,
+    pub reversar_pago_id: usize,
+    pub reversar_rep_nombre: String,
+    pub reversar_monto: f64,
+    pub reversar_metodo: String,
+    pub reversar_fecha: String,
     servicio_alumnos: Arc<ServicioAlumnos>,
     servicio_representantes: Arc<ServicioRepresentantes>,
     #[allow(dead_code)]
@@ -95,6 +106,15 @@ impl MyApp {
             monto_predeterminado: 0.0,
             ruta_bd,
             seleccionados: HashSet::new(),
+            seleccion_alumnos: HashSet::new(),
+            seleccion_consulta: HashSet::new(),
+            seleccion_representantes: HashSet::new(),
+            modal_reversar_activo: false,
+            reversar_pago_id: 0,
+            reversar_rep_nombre: String::new(),
+            reversar_monto: 0.0,
+            reversar_metodo: String::new(),
+            reversar_fecha: String::new(),
             servicio_alumnos,
             servicio_representantes,
             servicio_pagos,
@@ -105,6 +125,19 @@ impl MyApp {
             logger,
         };
         estado.refrescar();
+
+        // Creación automática de deudas al iniciar la app.
+        if !estado.representantes.is_empty()
+            && estado.monto_predeterminado > 0.0
+            && estado.deudas.is_empty()
+        {
+            if let Err(error) = estado.crear_deudas_del_mes() {
+                estado.logger.error(&format!(
+                    "No se pudieron crear las deudas automáticamente: {error}"
+                ));
+            }
+        }
+
         estado
     }
 
@@ -196,7 +229,7 @@ impl MyApp {
 
     /// Caso de uso: promover masivamente a los alumnos seleccionados.
     pub fn promover_seleccionados(&mut self, rango: i32, rallita: bool) -> Result<(), ErrorAplicacion> {
-        let ids = self.seleccionados.clone();
+        let ids = self.seleccion_alumnos.clone();
         self.servicio_alumnos.promover(ids, rango, rallita)?;
         self.refrescar();
         Ok(())
@@ -205,9 +238,9 @@ impl MyApp {
     /// Caso de uso: desactivar a los seleccionados, limpiar la selección y refrescar.
     /// Si todos los alumnos de un representante quedan inactivos, desactivarlo también.
     pub fn desactivar_seleccionados(&mut self) -> Result<(), ErrorAplicacion> {
-        let ids = self.seleccionados.clone();
+        let ids = self.seleccion_alumnos.clone();
         self.servicio_alumnos.desactivar(ids)?;
-        self.seleccionados.clear();
+        self.seleccion_alumnos.clear();
         self.refrescar();
         self.verificar_representantes_cascade();
         Ok(())
@@ -215,9 +248,9 @@ impl MyApp {
 
     /// Caso de uso: activar a los seleccionados.
     pub fn activar_seleccionados(&mut self) -> Result<(), ErrorAplicacion> {
-        let ids = self.seleccionados.clone();
+        let ids = self.seleccion_alumnos.clone();
         self.servicio_alumnos.activar(ids)?;
-        self.seleccionados.clear();
+        self.seleccion_alumnos.clear();
         self.refrescar();
         Ok(())
     }
@@ -299,6 +332,28 @@ impl MyApp {
         self.servicio_pagos.reversar_pago(pago_id)?;
         self.refrescar();
         Ok(())
+    }
+
+    /// Abre el modal de confirmación de reversión con los datos del pago.
+    pub fn abrir_modal_reversar(
+        &mut self,
+        pago_id: usize,
+        rep_nombre: String,
+        monto: f64,
+        metodo: String,
+        fecha: String,
+    ) {
+        self.reversar_pago_id = pago_id;
+        self.reversar_rep_nombre = rep_nombre;
+        self.reversar_monto = monto;
+        self.reversar_metodo = metodo;
+        self.reversar_fecha = fecha;
+        self.modal_reversar_activo = true;
+    }
+
+    /// Cierra el modal de reversión.
+    pub fn cerrar_modal_reversar(&mut self) {
+        self.modal_reversar_activo = false;
     }
 
     /// Total recaudado en el periodo administrado. Suma sobre la caché:
@@ -426,21 +481,60 @@ impl MyApp {
         }
     }
 
+    // --- Selección por contexto ---
+
+    pub fn seleccion_set(&mut self, contexto: &str) -> &mut HashSet<usize> {
+        match contexto {
+            "alumnos" => &mut self.seleccion_alumnos,
+            "consulta" => &mut self.seleccion_consulta,
+            "representantes" => &mut self.seleccion_representantes,
+            _ => &mut self.seleccionados,
+        }
+    }
+
+    pub fn seleccion_get(&self, contexto: &str) -> &HashSet<usize> {
+        match contexto {
+            "alumnos" => &self.seleccion_alumnos,
+            "consulta" => &self.seleccion_consulta,
+            "representantes" => &self.seleccion_representantes,
+            _ => &self.seleccionados,
+        }
+    }
+
+    pub fn toggle_seleccion_ctx(&mut self, id: usize, contexto: &str) {
+        let set = self.seleccion_set(contexto);
+        if set.contains(&id) {
+            set.remove(&id);
+        } else {
+            set.insert(id);
+        }
+    }
+
+    pub fn toggle_single_seleccion_ctx(&mut self, id: usize, contexto: &str) {
+        let set = self.seleccion_set(contexto);
+        if set.contains(&id) {
+            set.remove(&id);
+        } else {
+            set.clear();
+            set.insert(id);
+        }
+    }
+
     pub fn toggle_all(&mut self, alumnos_visibles: Vec<AlumnoVista>) {
         // 1. Verificamos si TODOS los alumnos que se están viendo ya están seleccionados
         let todos_seleccionados = alumnos_visibles
             .iter()
-            .all(|v| self.seleccionados.contains(&v.alumno.id));
+            .all(|v| self.seleccion_alumnos.contains(&v.alumno.id));
 
         if todos_seleccionados {
             // Si ya todos están, quitamos de la selección SOLO los que estamos viendo
             for vista in alumnos_visibles {
-                self.seleccionados.remove(&vista.alumno.id);
+                self.seleccion_alumnos.remove(&vista.alumno.id);
             }
         } else {
             // Si falta alguno (o todos), añadimos todos los visibles a la selección
             for vista in alumnos_visibles {
-                self.seleccionados.insert(vista.alumno.id);
+                self.seleccion_alumnos.insert(vista.alumno.id);
             }
         }
     }
