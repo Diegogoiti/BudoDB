@@ -10,7 +10,7 @@ use crate::presentation::components::form::Form;
 use crate::presentation::components::promotion_form::PromotionForm;
 use crate::presentation::components::searchbar::SearchBar;
 use crate::presentation::my_app::{self, Columnas};
-use chrono::{Datelike, Local};
+use chrono::Local;
 use dioxus::prelude::*;
 
 static ALUMNO_COLUMNS: &[HeaderColumn] = &[
@@ -680,6 +680,8 @@ pub fn Pagos() -> Element {
 struct DeudaRow {
     vista: DeudaVista,
     ultimo: Option<PagoVista>,
+    periodos_impagos: Vec<String>,
+    deuda_historial: f64,
 }
 
 static DEUDAS_COLUMNS: &[HeaderColumn] = &[
@@ -687,7 +689,7 @@ static DEUDAS_COLUMNS: &[HeaderColumn] = &[
     HeaderColumn { header: "Mensualidad", class: Some("text-right") },
     HeaderColumn { header: "Abonado", class: Some("text-right") },
     HeaderColumn { header: "Progreso", class: Some("") },
-    HeaderColumn { header: "Saldo", class: Some("text-right") },
+    HeaderColumn { header: "Deuda", class: Some("text-right") },
     HeaderColumn { header: "Estado", class: Some("text-center") },
     HeaderColumn { header: "Atraso", class: Some("text-center") },
     HeaderColumn { header: "Ultimo pago", class: Some("text-right") },
@@ -698,17 +700,12 @@ fn deuda_key(row: &DeudaRow) -> usize {
 }
 
 fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element {
-    let saldo_texto = fmt_monto(vista.vista.deuda.saldo());
-    let pct = vista.vista.deuda.porcentaje();
+    let saldo_texto = fmt_monto(vista.deuda_historial);
+    let pct = if vista.vista.deuda.monto_total > 0.0 {
+        ((vista.vista.deuda.monto_total - vista.deuda_historial) / vista.vista.deuda.monto_total * 100.0).min(100.0)
+    } else { 0.0 };
     let (etiqueta, clases) = badge_estado_deuda(&vista.vista.estado);
-    let atraso = {
-        let ahora = Local::now();
-        let actual_mes = ahora.year() as i32 * 12 + ahora.month() as i32;
-        let partes: Vec<&str> = vista.vista.deuda.periodo.split('-').collect();
-        let deuda_mes = partes.get(0).and_then(|a| a.parse::<i32>().ok()).unwrap_or(0) * 12
-            + partes.get(1).and_then(|m| m.parse::<i32>().ok()).unwrap_or(0);
-        (actual_mes - deuda_mes).max(0)
-    };
+    let impagos = &vista.periodos_impagos;
     rsx! {
         td { class: "px-3 py-2",
             p { class: "font-medium text-white truncate max-w-40", "{vista.vista.nombre_representante}" }
@@ -727,9 +724,9 @@ fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element
             span { class: "inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold {clases}", "{etiqueta}" }
         }
         td { class: "px-3 py-2 text-center",
-            if atraso > 0 && vista.vista.estado != EstadoDeuda::Pagada {
-                span { class: "inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-900 text-red-300",
-                    "{atraso}m"
+            if vista.vista.estado != EstadoDeuda::Pagada {
+                span { class: "inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-900 text-red-300",
+                    "{impagos.len()}"
                 }
             } else {
                 span { class: "text-gray-600 text-[9px]", "-" }
@@ -881,9 +878,29 @@ fn ConsultaTab() -> Element {
         match_nombre && match_estado
     }).cloned().collect();
 
+    let mut impagos_por_rep: std::collections::HashMap<usize, Vec<String>> = std::collections::HashMap::new();
+    for v in all_deudas.iter() {
+        if v.estado != EstadoDeuda::Pagada {
+            impagos_por_rep.entry(v.deuda.representante_id).or_default();
+            if !impagos_por_rep[&v.deuda.representante_id].contains(&v.deuda.periodo) {
+                impagos_por_rep.get_mut(&v.deuda.representante_id).unwrap().push(v.deuda.periodo.clone());
+            }
+        }
+    }
+
+    let mut aplicado_por_deuda: std::collections::HashMap<usize, f64> = std::collections::HashMap::new();
+    for pv in all_pagos.iter() {
+        for ap in &pv.aplicaciones {
+            *aplicado_por_deuda.entry(ap.aplicacion.deuda_id).or_insert(0.0) += ap.aplicacion.monto_aplicado;
+        }
+    }
+
     let deudas_rows: Vec<DeudaRow> = deudas.iter().map(|v| {
         let ultimo = ultimo_pago_por_deuda.get(&v.deuda.id).cloned();
-        DeudaRow { vista: v.clone(), ultimo: ultimo.cloned() }
+        let periodos_impagos = impagos_por_rep.get(&v.deuda.representante_id).cloned().unwrap_or_default();
+        let total_aplicado = aplicado_por_deuda.get(&v.deuda.id).copied().unwrap_or(0.0);
+        let deuda_historial = (v.deuda.monto_total - total_aplicado).max(0.0);
+        DeudaRow { vista: v.clone(), ultimo: ultimo.cloned(), periodos_impagos, deuda_historial }
     }).collect();
 
     {
