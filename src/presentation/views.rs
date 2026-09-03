@@ -1369,11 +1369,11 @@ fn HistorialTab() -> Element {
             }
 
             // -- Tabla de historial --
-            div { class: "rounded-xl border border-gray-800 bg-gray-900 shadow-xl flex-1 min-h-0",
-                if filtrado.is_empty() {
-                    div { class: "flex items-center justify-center h-full",
-                        p { class: "text-gray-400 font-medium text-xs", "Sin registros de historial" }
-                        p { class: "text-gray-500 text-[10px] mt-0.5",
+            if filtrado.is_empty() {
+                div { class: "rounded-xl border border-gray-800 bg-gray-900 shadow-xl flex-1 flex items-center justify-center",
+                    div {
+                        p { class: "text-gray-400 font-medium text-xs text-center", "Sin registros de historial" }
+                        p { class: "text-gray-500 text-[10px] mt-0.5 text-center",
                             if estado.read().representante_historial_id.is_some() {
                                 "No hay movimientos para este representante."
                             } else {
@@ -1381,18 +1381,18 @@ fn HistorialTab() -> Element {
                             }
                         }
                     }
-                } else {
-                    DataTable {
-                        data: filtrado.clone(),
-                        header_columns: HISTORIAL_COLUMNS,
-                        row_key: RowKeyFn(historial_key),
-                        render_row: RenderRowFn(render_historial_row),
-                        estado,
-                        aplicar_color_seleccion: false,
-                        single_select: false,
-                        checkbox: false,
-                        on_doble_click: move |_| {},
-                    }
+                }
+            } else {
+                DataTable {
+                    data: filtrado.clone(),
+                    header_columns: HISTORIAL_COLUMNS,
+                    row_key: RowKeyFn(historial_key),
+                    render_row: RenderRowFn(render_historial_row),
+                    estado,
+                    aplicar_color_seleccion: false,
+                    single_select: false,
+                    checkbox: false,
+                    on_doble_click: move |_| {},
                 }
             }
 
