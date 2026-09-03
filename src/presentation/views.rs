@@ -10,10 +10,11 @@ use crate::presentation::components::form::Form;
 use crate::presentation::components::promotion_form::PromotionForm;
 use crate::presentation::components::searchbar::SearchBar;
 use crate::presentation::my_app::{self, Columnas};
-use chrono::Local;
+use chrono::{Datelike, Local};
 use dioxus::prelude::*;
 
 static ALUMNO_COLUMNS: &[HeaderColumn] = &[
+    HeaderColumn { header: "ID", class: Some("text-gray-500 font-mono text-[10px]") },
     HeaderColumn { header: "Nombre", class: Some("font-bold text-white whitespace-nowrap") },
     HeaderColumn { header: "Cinta", class: Some("") },
     HeaderColumn { header: "Rango", class: Some("") },
@@ -41,6 +42,7 @@ fn alumno_key(vista: &AlumnoVista) -> usize {
 fn render_alumno_row(vista: &AlumnoVista, _estado: Signal<my_app::MyApp>) -> Element {
     let hoy = Local::now().date_naive();
     rsx! {
+        td { class: "px-4 py-3 text-gray-500 font-mono text-[10px]", "{vista.alumno.id}" }
         td { class: "px-4 py-3 font-bold text-white whitespace-nowrap", "{vista.alumno.nombre}" }
         td { class: "px-4 py-3",
             span { class: "inline-flex items-center justify-center min-w-36 px-3 py-1.5 rounded bg-gray-700 text-[10px] uppercase font-bold text-gray-300 whitespace-nowrap",
@@ -687,6 +689,7 @@ static DEUDAS_COLUMNS: &[HeaderColumn] = &[
     HeaderColumn { header: "Progreso", class: Some("") },
     HeaderColumn { header: "Saldo", class: Some("text-right") },
     HeaderColumn { header: "Estado", class: Some("text-center") },
+    HeaderColumn { header: "Atraso", class: Some("text-center") },
     HeaderColumn { header: "Ultimo pago", class: Some("text-right") },
 ];
 
@@ -698,6 +701,14 @@ fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element
     let saldo_texto = fmt_monto(vista.vista.deuda.saldo());
     let pct = vista.vista.deuda.porcentaje();
     let (etiqueta, clases) = badge_estado_deuda(&vista.vista.estado);
+    let atraso = {
+        let ahora = Local::now();
+        let actual_mes = ahora.year() as i32 * 12 + ahora.month() as i32;
+        let partes: Vec<&str> = vista.vista.deuda.periodo.split('-').collect();
+        let deuda_mes = partes.get(0).and_then(|a| a.parse::<i32>().ok()).unwrap_or(0) * 12
+            + partes.get(1).and_then(|m| m.parse::<i32>().ok()).unwrap_or(0);
+        (actual_mes - deuda_mes).max(0)
+    };
     rsx! {
         td { class: "px-3 py-2",
             p { class: "font-medium text-white truncate max-w-40", "{vista.vista.nombre_representante}" }
@@ -714,6 +725,15 @@ fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element
         td { class: "px-3 py-2 text-right font-mono font-bold text-amber-400", "{saldo_texto}" }
         td { class: "px-3 py-2 text-center",
             span { class: "inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold {clases}", "{etiqueta}" }
+        }
+        td { class: "px-3 py-2 text-center",
+            if atraso > 0 && vista.vista.estado != EstadoDeuda::Pagada {
+                span { class: "inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-900 text-red-300",
+                    "{atraso}m"
+                }
+            } else {
+                span { class: "text-gray-600 text-[9px]", "-" }
+            }
         }
         td { class: "px-3 py-2 text-gray-400 text-[10px]",
             if let Some(pv) = &vista.ultimo {
@@ -768,9 +788,18 @@ fn render_historial_row(vista: &HistorialPagoVista, _estado: Signal<my_app::MyAp
     }
 }
 
-// =====================================================
+// ═══════════════════════════════════════════════════════════════
 // Pestaña Consulta (vista de deudas/pagos)
-// =====================================================
+// ═══════════════════════════════════════════════════════════════
+
+#[derive(Clone, Debug, PartialEq)]
+struct RevertInfo {
+    pago_id: usize,
+    rep_nombre: String,
+    monto: f64,
+    metodo: String,
+    fecha: String,
+}
 
 #[component]
 fn ConsultaTab() -> Element {
@@ -780,10 +809,11 @@ fn ConsultaTab() -> Element {
     let mut filtro_estado = use_signal(String::new);
 
     let mut modal_pago = use_signal(|| false);
-    let mut pago_representante_id = use_signal(|| 0usize);
     let mut pago_monto = use_signal(String::new);
     let mut pago_metodo_id = use_signal(|| 1i32);
     let mut pago_msg = use_signal(|| (String::new(), false));
+    let mut revert_info = use_signal(|| None::<RevertInfo>);
+    let mut revert_msg = use_signal(|| (String::new(), false));
 
     let (etiqueta_mes, total_deudas, total_abonado, pagados, parciales, pendientes) = {
         let e = estado.read();
@@ -801,19 +831,17 @@ fn ConsultaTab() -> Element {
     let all_deudas = estado.read().deudas.clone();
     let all_pagos = estado.read().pagos.clone();
     let representantes = estado.read().representantes.clone();
+    let seleccion_consulta = estado.read().seleccion_consulta.clone();
     let hay_pendientes = all_deudas.iter().any(|v| v.estado != EstadoDeuda::Pagada);
-    let hay_rep_seleccionado = estado.read().seleccion_consulta.len() == 1;
+    let hay_rep_seleccionado = seleccion_consulta.len() == 1;
     let puede_registrar_pago = hay_pendientes && hay_rep_seleccionado;
 
-    // Lógica para botón "Revertir pago": seleccionado + último pago completado
-    let rep_seleccionado_id = if hay_rep_seleccionado {
-        Some(*estado.read().seleccion_consulta.iter().next().unwrap())
+    let reversar_pago_data: Option<PagoVista> = if hay_rep_seleccionado {
+        let id = *seleccion_consulta.iter().next().unwrap();
+        all_pagos.iter().rev().find(|p| p.pago.representante_id == id && p.estado == EstadoPago::Completado).cloned()
     } else {
         None
     };
-    let reversar_pago_data: Option<PagoVista> = rep_seleccionado_id.and_then(|id| {
-        all_pagos.iter().rev().find(|p| p.pago.representante_id == id && p.estado == EstadoPago::Completado).cloned()
-    });
     let puede_reversar_pago = reversar_pago_data.is_some();
 
     let pct_global = if total_deudas > 0.0 {
@@ -830,9 +858,11 @@ fn ConsultaTab() -> Element {
         clase_barra(&EstadoDeuda::Parcial)
     };
 
-    let mut ultimo_pago_por_rep: std::collections::HashMap<usize, &PagoVista> = std::collections::HashMap::new();
+    let mut ultimo_pago_por_deuda: std::collections::HashMap<usize, &PagoVista> = std::collections::HashMap::new();
     for pv in all_pagos.iter().rev() {
-        ultimo_pago_por_rep.entry(pv.pago.representante_id).or_insert(pv);
+        for ap in &pv.aplicaciones {
+            ultimo_pago_por_deuda.entry(ap.aplicacion.deuda_id).or_insert(pv);
+        }
     }
 
     let q = busqueda.read().to_lowercase();
@@ -852,7 +882,7 @@ fn ConsultaTab() -> Element {
     }).cloned().collect();
 
     let deudas_rows: Vec<DeudaRow> = deudas.iter().map(|v| {
-        let ultimo = ultimo_pago_por_rep.get(&v.deuda.representante_id).cloned();
+        let ultimo = ultimo_pago_por_deuda.get(&v.deuda.id).cloned();
         DeudaRow { vista: v.clone(), ultimo: ultimo.cloned() }
     }).collect();
 
@@ -872,11 +902,17 @@ fn ConsultaTab() -> Element {
         });
     }
 
-    let pago_rep_id_val = *pago_representante_id.read();
-    let pago_rep_nombre = representantes.iter()
-        .find(|r| r.id == pago_rep_id_val)
-        .map(|r| format!("{} ({})", r.nombre, r.numero_contacto))
-        .unwrap_or_else(|| "Representante".to_string());
+    let pago_nombre_display = if hay_rep_seleccionado {
+        let id = *seleccion_consulta.iter().next().unwrap();
+        representantes.iter()
+            .find(|r| r.id == id)
+            .map(|r| format!("{} ({})", r.nombre, r.numero_contacto))
+            .unwrap_or_else(|| "Representante".to_string())
+    } else {
+        "Representante".to_string()
+    };
+
+    let rev_data = revert_info.read().as_ref().cloned();
 
     rsx! {
         div { class: "flex flex-col h-full space-y-3 p-4 overflow-auto",
@@ -980,8 +1016,6 @@ fn ConsultaTab() -> Element {
                     },
                     disabled: !puede_registrar_pago,
                     onclick: move |_| {
-                        let seleccionados: Vec<usize> = estado.read().seleccion_consulta.iter().copied().collect();
-                        pago_representante_id.set(seleccionados[0]);
                         pago_monto.set(String::new());
                         pago_metodo_id.set(1);
                         pago_msg.set((String::new(), false));
@@ -998,13 +1032,14 @@ fn ConsultaTab() -> Element {
                     disabled: !puede_reversar_pago,
                     onclick: move |_| {
                         if let Some(pv) = &reversar_pago_data {
-                            estado.write().abrir_modal_reversar(
-                                pv.pago.id,
-                                pv.nombre_representante.clone(),
-                                pv.pago.monto_recibido,
-                                metodo_label(&pv.metodo).to_string(),
-                                pv.pago.fecha_pago.clone(),
-                            );
+                            revert_msg.set((String::new(), false));
+                            revert_info.set(Some(RevertInfo {
+                                pago_id: pv.pago.id,
+                                rep_nombre: pv.nombre_representante.clone(),
+                                monto: pv.pago.monto_recibido,
+                                metodo: metodo_label(&pv.metodo).to_string(),
+                                fecha: pv.pago.fecha_pago.clone(),
+                            }));
                         }
                     },
                     "↩ Revertir pago"
@@ -1021,10 +1056,10 @@ fn ConsultaTab() -> Element {
                 div { class: "space-y-4",
                     div { class: "flex items-center gap-3 p-3 rounded-lg bg-gray-900 border border-gray-700",
                         div { class: "w-9 h-9 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-sm shrink-0",
-                            {pago_rep_nombre.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_else(|| "R".to_string())}
+                            {pago_nombre_display.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_else(|| "R".to_string())}
                         }
                         div { class: "min-w-0",
-                            p { class: "text-sm font-bold text-white truncate", "{pago_rep_nombre}" }
+                            p { class: "text-sm font-bold text-white truncate", "{pago_nombre_display}" }
                             p { class: "text-[10px] text-gray-500", "El monto se aplica a la deuda mas antigua (FIFO). Si sobra, crea adelantos." }
                         }
                     }
@@ -1076,7 +1111,14 @@ fn ConsultaTab() -> Element {
                         button {
                             class: "px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
                             onclick: move |_| {
-                                let rep_id = *pago_representante_id.read();
+                                let rep_id = {
+                                    let e = estado.read();
+                                    e.seleccion_consulta.iter().next().copied().unwrap_or(0)
+                                };
+                                if rep_id == 0 {
+                                    pago_msg.set(("Seleccioná un representante.".to_string(), true));
+                                    return;
+                                }
                                 let monto = pago_monto.read().trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
                                 if monto <= 0.0 {
                                     pago_msg.set(("El monto debe ser mayor a cero.".to_string(), true));
@@ -1090,79 +1132,87 @@ fn ConsultaTab() -> Element {
                                     metodo_id: metodo,
                                     fecha_pago: fecha,
                                 };
-                                match estado.write().registrar_pago(datos) {
+                                let resultado = estado.write().registrar_pago(datos);
+                                match resultado {
                                     Ok(()) => {
                                         modal_pago.set(false);
                                         pago_monto.set(String::new());
-                                        pago_representante_id.set(0);
                                         pago_msg.set(("Pago registrado.".to_string(), false));
                                     }
                                     Err(error) => pago_msg.set((error.to_string(), true)),
                                 }
                             },
                             "Registrar"
+                        }
+                    }
                 }
             }
         }
 
         // Modal: revertir pago
-        if estado.read().modal_reversar_activo {
+        if let Some(info_clone) = rev_data.as_ref() {
             ModalBase {
                 titulo: "⚠️ Revertir pago".to_string(),
                 ancho: Some("max-w-sm".to_string()),
-                on_cerrar: move |_| estado.write().cerrar_modal_reversar(),
-                { let e = estado.read(); rsx! {
-                    div { class: "space-y-4",
-                        div { class: "flex items-center gap-3 p-3 rounded-lg bg-gray-900 border border-gray-700",
-                            div { class: "w-9 h-9 rounded-full bg-red-600/20 text-red-400 flex items-center justify-center font-bold text-sm shrink-0",
-                                {e.reversar_rep_nombre.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_else(|| "R".to_string())}
-                            }
-                            div { class: "min-w-0",
-                                p { class: "text-sm font-bold text-white truncate", "{e.reversar_rep_nombre}" }
-                                p { class: "text-[10px] text-gray-500", "Se restaurarán los saldos de las deudas afectadas." }
-                            }
+                on_cerrar: move |_| revert_info.set(None),
+                div { class: "space-y-4",
+                    div { class: "flex items-center gap-3 p-3 rounded-lg bg-gray-900 border border-gray-700",
+                        div { class: "w-9 h-9 rounded-full bg-red-600/20 text-red-400 flex items-center justify-center font-bold text-sm shrink-0",
+                            {info_clone.rep_nombre.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_else(|| "R".to_string())}
                         }
-
-                        div { class: "grid grid-cols-2 gap-3 text-sm",
-                            div { class: "flex flex-col space-y-0.5",
-                                span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Monto" }
-                                span { class: "font-mono font-bold text-amber-400", "{fmt_monto(e.reversar_monto)}" }
-                            }
-                            div { class: "flex flex-col space-y-0.5",
-                                span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Método" }
-                                span { class: "text-gray-300", "{e.reversar_metodo}" }
-                            }
-                            div { class: "flex flex-col space-y-0.5",
-                                span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Fecha" }
-                                span { class: "text-gray-300 font-mono", "{e.reversar_fecha}" }
-                            }
-                        }
-
-                        p { class: "text-xs text-red-400/80", "Esta acción no se puede deshacer." }
-
-                        div { class: "flex gap-2 justify-end pt-1",
-                            button {
-                                class: "px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer",
-                                onclick: move |_| estado.write().cerrar_modal_reversar(),
-                                "Cancelar"
-                            }
-                            button {
-                                class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
-                                onclick: move |_| {
-                                    let pago_id = estado.read().reversar_pago_id;
-                                    let resultado = estado.write().reversar_pago(pago_id);
-                                    estado.write().cerrar_modal_reversar();
-                                    let _ = resultado;
-                                },
-                                "Revertir"
-                            }
+                        div { class: "min-w-0",
+                            p { class: "text-sm font-bold text-white truncate", "{info_clone.rep_nombre}" }
+                            p { class: "text-[10px] text-gray-500", "Se restaurarán los saldos de las deudas afectadas." }
                         }
                     }
-                }}
+
+                    div { class: "grid grid-cols-2 gap-3 text-sm",
+                        div { class: "flex flex-col space-y-0.5",
+                            span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Monto" }
+                            span { class: "font-mono font-bold text-amber-400", "{fmt_monto(info_clone.monto)}" }
+                        }
+                        div { class: "flex flex-col space-y-0.5",
+                            span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Método" }
+                            span { class: "text-gray-300", "{info_clone.metodo}" }
+                        }
+                        div { class: "flex flex-col space-y-0.5",
+                            span { class: "text-[10px] uppercase tracking-wider text-gray-500", "Fecha" }
+                            span { class: "text-gray-300 font-mono", "{info_clone.fecha}" }
+                        }
+                    }
+
+                    p { class: "text-xs text-red-400/80", "Esta acción no se puede deshacer." }
+
+                    if revert_msg.read().1 {
+                        p { class: "text-xs text-red-400 bg-red-900/30 rounded p-2", "{revert_msg.read().0}" }
+                    }
+
+                    div { class: "flex gap-2 justify-end pt-1",
+                        button {
+                            class: "px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer",
+                            onclick: move |_| revert_info.set(None),
+                            "Cancelar"
+                        }
+                        button {
+                            class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors active:scale-[0.98] cursor-pointer text-sm",
+                            onclick: move |_| {
+                                let id = revert_info.read().as_ref().map(|i| i.pago_id).unwrap_or(0);
+                                let resultado = estado.write().reversar_pago(id);
+                                match resultado {
+                                    Ok(()) => {
+                                        revert_info.set(None);
+                                    }
+                                    Err(error) => {
+                                        revert_msg.set((error.to_string(), true));
+                                    }
+                                }
+                            },
+                            "Revertir"
+                        }
+                    }
+                }
             }
         }
-    }
-}
     }
 }
 
@@ -1346,6 +1396,7 @@ fn HistorialTab() -> Element {
 // =====================================================
 
 static REP_COLUMNS: &[HeaderColumn] = &[
+    HeaderColumn { header: "ID", class: Some("text-gray-500 font-mono text-[10px]") },
     HeaderColumn { header: "Nombre", class: Some("font-bold text-white whitespace-nowrap") },
     HeaderColumn { header: "Telefono", class: Some("text-blue-400 font-mono whitespace-nowrap") },
     HeaderColumn { header: "Estado", class: Some("text-center") },
@@ -1362,6 +1413,7 @@ fn render_rep_row(vista: &Representante, _estado: Signal<my_app::MyApp>) -> Elem
         ("Inactivo", "bg-gray-700 text-gray-400")
     };
     rsx! {
+        td { class: "px-4 py-3 text-gray-500 font-mono text-[10px]", "{vista.id}" }
         td { class: "px-4 py-3 font-bold text-white whitespace-nowrap", "{vista.nombre}" }
         td { class: "px-4 py-3 text-blue-400 font-mono whitespace-nowrap", "{vista.numero_contacto}" }
         td { class: "px-4 py-3 text-center",

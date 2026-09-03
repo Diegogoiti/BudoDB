@@ -58,6 +58,13 @@ impl ServicioPagos {
     ) -> Result<ResultadoFifo, ErrorAplicacion> {
         validar_datos_pago(&datos)?;
 
+        // Pre-validar: si puede sobrar dinero, verificar mensualidad ANTES de insertar.
+        let deudas_cobrables = self.repo_deudas.fetch_cobrables_por_representante(datos.representante_id)?;
+        let total_cobrable: f64 = deudas_cobrables.iter().map(|d| d.monto_pendiente).sum();
+        if datos.monto_recibido > total_cobrable {
+            self.obtener_mensualidad()?;
+        }
+
         // 1. Crear el pago con estado Completado
         let pago = Pago {
             id: 0,
@@ -79,12 +86,21 @@ impl ServicioPagos {
         ));
 
         // 2. Ejecutar FIFO
-        let aplicaciones = self.aplicar_fifo(
+        let aplicaciones = match self.aplicar_fifo(
             pago_id,
             datos.representante_id,
             datos.monto_recibido,
             &datos.fecha_pago,
-        )?;
+        ) {
+            Ok(apps) => apps,
+            Err(error) => {
+                self.logger.error(&format!(
+                    "Pago #{pago_id}: error en FIFO - {error}. Eliminando pago huérfano."
+                ));
+                let _ = self.repo_pagos.delete(HashSet::from([pago_id]));
+                return Err(error);
+            }
+        };
 
         // 3. Historial: registro del pago
         let total_aplicado: f64 = aplicaciones.iter().map(|(_, m)| m).sum();

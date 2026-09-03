@@ -55,13 +55,6 @@ pub struct MyApp {
     pub seleccion_alumnos: HashSet<usize>,
     pub seleccion_consulta: HashSet<usize>,
     pub seleccion_representantes: HashSet<usize>,
-    /// Estado del modal de reversión de pago.
-    pub modal_reversar_activo: bool,
-    pub reversar_pago_id: usize,
-    pub reversar_rep_nombre: String,
-    pub reversar_monto: f64,
-    pub reversar_metodo: String,
-    pub reversar_fecha: String,
     servicio_alumnos: Arc<ServicioAlumnos>,
     servicio_representantes: Arc<ServicioRepresentantes>,
     #[allow(dead_code)]
@@ -109,12 +102,6 @@ impl MyApp {
             seleccion_alumnos: HashSet::new(),
             seleccion_consulta: HashSet::new(),
             seleccion_representantes: HashSet::new(),
-            modal_reversar_activo: false,
-            reversar_pago_id: 0,
-            reversar_rep_nombre: String::new(),
-            reversar_monto: 0.0,
-            reversar_metodo: String::new(),
-            reversar_fecha: String::new(),
             servicio_alumnos,
             servicio_representantes,
             servicio_pagos,
@@ -315,45 +302,36 @@ impl MyApp {
     // ---------- Casos de uso de pagos ----------
 
     pub fn registrar_pago(&mut self, datos: DatosPago) -> Result<(), ErrorAplicacion> {
-        self.servicio_pagos.registrar_pago(datos)?;
+        let resultado = self.servicio_pagos.registrar_pago(datos);
         self.refrescar();
+        match &resultado {
+            Ok(_) => self.logger.info("Pago registrado y datos actualizados."),
+            Err(error) => self.logger.error(&format!("Error registrando pago: {error}")),
+        }
+        resultado?;
         Ok(())
     }
 
     /// Anula un pago (borrado lógico) y refresca totales/morosos.
     pub fn anular_pago(&mut self, id: usize) -> Result<(), ErrorAplicacion> {
-        self.servicio_pagos.eliminar(HashSet::from([id]))?;
+        let resultado = self.servicio_pagos.eliminar(HashSet::from([id]));
         self.refrescar();
-        Ok(())
+        match &resultado {
+            Ok(_) => self.logger.info(&format!("Pago #{id} anulado y datos actualizados.")),
+            Err(error) => self.logger.error(&format!("Error anulando pago #{id}: {error}")),
+        }
+        resultado
     }
 
     /// Reversa un pago: restaura saldos de deudas y cambia estado a Reversado.
     pub fn reversar_pago(&mut self, pago_id: usize) -> Result<(), ErrorAplicacion> {
-        self.servicio_pagos.reversar_pago(pago_id)?;
+        let resultado = self.servicio_pagos.reversar_pago(pago_id);
         self.refrescar();
-        Ok(())
-    }
-
-    /// Abre el modal de confirmación de reversión con los datos del pago.
-    pub fn abrir_modal_reversar(
-        &mut self,
-        pago_id: usize,
-        rep_nombre: String,
-        monto: f64,
-        metodo: String,
-        fecha: String,
-    ) {
-        self.reversar_pago_id = pago_id;
-        self.reversar_rep_nombre = rep_nombre;
-        self.reversar_monto = monto;
-        self.reversar_metodo = metodo;
-        self.reversar_fecha = fecha;
-        self.modal_reversar_activo = true;
-    }
-
-    /// Cierra el modal de reversión.
-    pub fn cerrar_modal_reversar(&mut self) {
-        self.modal_reversar_activo = false;
+        match &resultado {
+            Ok(_) => self.logger.info(&format!("Pago #{pago_id} reversado y datos actualizados.")),
+            Err(error) => self.logger.error(&format!("Error invirtiendo pago #{pago_id}: {error}")),
+        }
+        resultado
     }
 
     /// Total recaudado en el periodo administrado. Suma sobre la caché:
