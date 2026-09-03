@@ -8,7 +8,7 @@ use crate::application::service_deudas::ServicioDeudas;
 use crate::application::service_historial::ServicioHistorialPagos;
 use crate::application::service_pagos::ServicioPagos;
 use crate::application::service_representantes::ServicioRepresentantes;
-use crate::domain::{Alumno, Cintas, Representante};
+use crate::domain::{Alumno, Cintas, EstadoDeuda, Representante};
 use chrono::{Datelike, Local};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -391,7 +391,10 @@ impl MyApp {
 
     /// Monto total de todas las deudas del periodo (monto × num deudas).
     pub fn total_deudas_periodo(&self) -> f64 {
-        self.deudas.iter().map(|v| v.deuda.monto_total).sum()
+        self.deudas.iter()
+            .filter(|v| v.estado != EstadoDeuda::Pagada)
+            .map(|v| v.deuda.monto_pendiente)
+            .sum()
     }
 
     /// Monto total abonado en el periodo.
@@ -401,7 +404,6 @@ impl MyApp {
 
     /// Cantidad de representantes que fully pagaron.
     pub fn reps_pagados(&self) -> usize {
-        use crate::domain::EstadoDeuda;
         self.deudas
             .iter()
             .filter(|v| v.estado == EstadoDeuda::Pagada)
@@ -410,7 +412,6 @@ impl MyApp {
 
     /// Cantidad con abono parcial.
     pub fn reps_parciales(&self) -> usize {
-        use crate::domain::EstadoDeuda;
         self.deudas
             .iter()
             .filter(|v| v.estado == EstadoDeuda::Parcial)
@@ -419,7 +420,6 @@ impl MyApp {
 
     /// Cantidad sin abono alguno (pendientes totales).
     pub fn reps_pendientes(&self) -> usize {
-        use crate::domain::EstadoDeuda;
         self.deudas
             .iter()
             .filter(|v| v.estado == EstadoDeuda::Pendiente)

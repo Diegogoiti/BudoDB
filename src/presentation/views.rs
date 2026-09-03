@@ -726,7 +726,7 @@ fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element
         td { class: "px-3 py-2 text-center",
             if vista.vista.estado != EstadoDeuda::Pagada {
                 span { class: "inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-900 text-red-300",
-                    "{impagos.len()}"
+                    "{impagos.len().saturating_sub(1)}"
                 }
             } else {
                 span { class: "text-gray-600 text-[9px]", "-" }
@@ -823,7 +823,7 @@ fn ConsultaTab() -> Element {
             e.reps_pendientes(),
         )
     };
-    let por_cobrar = (total_deudas - total_abonado).max(0.0);
+    let por_cobrar = total_deudas;
 
     let all_deudas = estado.read().deudas.clone();
     let todas_las_deudas = estado.read().todas_las_deudas.clone();
@@ -953,7 +953,7 @@ fn ConsultaTab() -> Element {
                 div { class: "bg-gray-800 rounded-lg p-3 border border-gray-700",
                     p { class: "text-[10px] uppercase tracking-wider text-gray-400", "Deudas" }
                     p { class: "text-xl font-bold text-gray-100 mt-0.5", {fmt_monto(total_deudas)} }
-                    p { class: "text-[10px] text-gray-500", "{all_deudas.len()} registros" }
+                    p { class: "text-[10px] text-gray-500", "{pendientes + parciales} pendientes" }
                 }
                 div { class: "bg-gray-800 rounded-lg p-3 border border-gray-700",
                     p { class: "text-[10px] uppercase tracking-wider text-gray-400", "Recaudado" }
@@ -1363,7 +1363,7 @@ fn HistorialTab() -> Element {
             }
 
             // -- Tabla de historial --
-            div { class: "overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl flex-1",
+            div { class: "rounded-xl border border-gray-800 bg-gray-900 shadow-xl flex-1",
                 if filtrado.is_empty() {
                     div { class: "flex items-center justify-center h-full",
                         p { class: "text-gray-400 font-medium text-xs", "Sin registros de historial" }
