@@ -41,6 +41,8 @@ pub struct MyApp {
     pub morosos: Vec<Representante>,
     /// Deudas del periodo actual con saldos y estados ya resueltos.
     pub deudas: Vec<DeudaVista>,
+    /// Todas las deudas de todos los periodos (para calcular atraso).
+    pub todas_las_deudas: Vec<DeudaVista>,
     pub historial_pagos: Vec<HistorialPagoVista>,
     /// Mes que administra el panel de pagos, formato "YYYY-MM".
     pub periodo_actual: String,
@@ -93,6 +95,7 @@ impl MyApp {
             pagos: Vec::new(),
             morosos: Vec::new(),
             deudas: Vec::new(),
+            todas_las_deudas: Vec::new(),
             historial_pagos: Vec::new(),
             representante_historial_id: None,
             periodo_actual: format!("{:04}-{:02}", ahora.year(), ahora.month()),
@@ -177,6 +180,12 @@ impl MyApp {
                     Ok(deudas) => self.deudas = deudas,
                     Err(error) => self.logger.error(&format!(
                         "No se pudieron cargar las deudas del periodo: {error}"
+                    )),
+                }
+                match self.servicio_deudas.listar_todas(&self.representantes.clone()) {
+                    Ok(todas) => self.todas_las_deudas = todas,
+                    Err(error) => self.logger.error(&format!(
+                        "No se pudieron cargar todas las deudas: {error}"
                     )),
                 }
             }

@@ -826,6 +826,7 @@ fn ConsultaTab() -> Element {
     let por_cobrar = (total_deudas - total_abonado).max(0.0);
 
     let all_deudas = estado.read().deudas.clone();
+    let todas_las_deudas = estado.read().todas_las_deudas.clone();
     let all_pagos = estado.read().pagos.clone();
     let representantes = estado.read().representantes.clone();
     let seleccion_consulta = estado.read().seleccion_consulta.clone();
@@ -879,7 +880,7 @@ fn ConsultaTab() -> Element {
     }).cloned().collect();
 
     let mut impagos_por_rep: std::collections::HashMap<usize, Vec<String>> = std::collections::HashMap::new();
-    for v in all_deudas.iter() {
+    for v in todas_las_deudas.iter() {
         if v.estado != EstadoDeuda::Pagada {
             impagos_por_rep.entry(v.deuda.representante_id).or_default();
             if !impagos_por_rep[&v.deuda.representante_id].contains(&v.deuda.periodo) {

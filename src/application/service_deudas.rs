@@ -164,6 +164,32 @@ impl ServicioDeudas {
 
         Ok(vistas)
     }
+
+    pub fn listar_todas(
+        &self,
+        representantes: &[Representante],
+    ) -> Result<Vec<DeudaVista>, ErrorAplicacion> {
+        let deudas = self.repo_deudas.fetch_all()?;
+        let vistas: Vec<DeudaVista> = deudas
+            .iter()
+            .map(|deuda| {
+                let representante = representantes
+                    .iter()
+                    .find(|r| r.id == deuda.representante_id);
+                DeudaVista {
+                    deuda: deuda.clone(),
+                    nombre_representante: representante
+                        .map(|r| r.nombre.clone())
+                        .unwrap_or_else(|| format!("ID {}", deuda.representante_id)),
+                    telefono_representante: representante
+                        .map(|r| r.numero_contacto.clone())
+                        .unwrap_or_default(),
+                    estado: deuda.estado(),
+                }
+            })
+            .collect();
+        Ok(vistas)
+    }
 }
 
 #[cfg(test)]
