@@ -705,7 +705,6 @@ fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element
         ((vista.vista.deuda.monto_total - vista.deuda_historial) / vista.vista.deuda.monto_total * 100.0).min(100.0)
     } else { 0.0 };
     let (etiqueta, clases) = badge_estado_deuda(&vista.vista.estado);
-    let impagos = &vista.periodos_impagos;
     rsx! {
         td { class: "px-3 py-2",
             p { class: "font-medium text-white truncate max-w-40", "{vista.vista.nombre_representante}" }
@@ -724,12 +723,19 @@ fn render_deuda_row(vista: &DeudaRow, _estado: Signal<my_app::MyApp>) -> Element
             span { class: "inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold {clases}", "{etiqueta}" }
         }
         td { class: "px-3 py-2 text-center",
-            if vista.vista.estado != EstadoDeuda::Pagada {
-                span { class: "inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-900 text-red-300",
-                    "{impagos.len().saturating_sub(1)}"
+            {
+                let atrasos = vista.periodos_impagos.len().saturating_sub(1);
+                if vista.vista.estado != EstadoDeuda::Pagada && atrasos > 0 {
+                    rsx! {
+                        span { class: "inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-900 text-red-300",
+                            "{atrasos}"
+                        }
+                    }
+                } else {
+                    rsx! {
+                        span { class: "text-gray-600 text-[9px]", "-" }
+                    }
                 }
-            } else {
-                span { class: "text-gray-600 text-[9px]", "-" }
             }
         }
         td { class: "px-3 py-2 text-gray-400 text-[10px]",
@@ -1363,7 +1369,7 @@ fn HistorialTab() -> Element {
             }
 
             // -- Tabla de historial --
-            div { class: "rounded-xl border border-gray-800 bg-gray-900 shadow-xl flex-1",
+            div { class: "rounded-xl border border-gray-800 bg-gray-900 shadow-xl flex-1 min-h-0",
                 if filtrado.is_empty() {
                     div { class: "flex items-center justify-center h-full",
                         p { class: "text-gray-400 font-medium text-xs", "Sin registros de historial" }
